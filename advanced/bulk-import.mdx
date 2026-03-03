@@ -32,7 +32,7 @@ SuperTokens Core provides a high-performance bulk import system for migrating us
 
 ## Bulk Import Configuration
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:91-101`:
+From [io/supertokens/bulkimport/BulkImport.java:91-101](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L91-L101):
 
 <ParamField path="MAX_USERS_TO_ADD" type="number" value="10000">
   Maximum users per POST request
@@ -99,7 +99,7 @@ public class TotpDevice {
 
 ## Adding Users for Import
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:106-123`:
+From [io/supertokens/bulkimport/BulkImport.java:106-123](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L106-L123):
 
 ```java
 public static void addUsers(
@@ -126,7 +126,7 @@ public static void addUsers(
 
 ### Processing Pipeline
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:209-239`:
+From [io/supertokens/bulkimport/BulkImport.java:209-239](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L209-L239):
 
 <Steps>
   <Step title="Process Login Methods">
@@ -191,7 +191,7 @@ public static void processUsersImportSteps(
 
 ### Email/Password Import
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:383-426`:
+From [io/supertokens/bulkimport/BulkImport.java:383-426](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L383-L426):
 
 ```java
 private static List<? extends ImportUserBase> processEmailPasswordLoginMethods(
@@ -243,7 +243,7 @@ private static List<? extends ImportUserBase> processEmailPasswordLoginMethods(
 
 ### Third-Party Import
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:344-381`:
+From [io/supertokens/bulkimport/BulkImport.java:344-381](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L344-L381):
 
 ```java
 private static List<? extends ImportUserBase> processThirdpartyLoginMethods(
@@ -312,7 +312,7 @@ private static List<? extends ImportUserBase> processPasswordlessLoginMethods(
 
 ## Account Linking During Import
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:479-527`:
+From [io/supertokens/bulkimport/BulkImport.java:479-527](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L479-L527):
 
 ```java
 private static void createPrimaryUsersAndLinkAccounts(
@@ -355,7 +355,7 @@ private static void createPrimaryUsersAndLinkAccounts(
 
 ## Tenant Association
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:428-477`:
+From [io/supertokens/bulkimport/BulkImport.java:428-477](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L428-L477):
 
 ```java
 private static void associateUserToTenants(
@@ -391,7 +391,7 @@ private static void associateUserToTenants(
 
 ### Error Codes
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:86-87`:
+From [io/supertokens/bulkimport/BulkImport.java:86-87](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L86-L87):
 
 All errors include unique error codes (E001-E046) for debugging:
 
@@ -431,7 +431,7 @@ Errors are mapped by user ID:
 
 ### Get Import Users
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:125-152`:
+From [io/supertokens/bulkimport/BulkImport.java:125-152](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L125-L152):
 
 ```java
 public static BulkImportUserPaginationContainer getUsers(
@@ -498,7 +498,7 @@ long count = BulkImport.getBulkImportUsersCount(
 
 ## Deleting Import Users
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:154-157`:
+From [io/supertokens/bulkimport/BulkImport.java:154-157](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/bulkimport/BulkImport.java#L154-L157):
 
 ```java
 public static List<String> deleteUsers(

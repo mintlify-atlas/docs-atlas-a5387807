@@ -129,7 +129,7 @@ graph TD
 
 ### Refresh Process
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:543-650`:
+From [Session.java:543-650](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/session/Session.java#L543-L650):
 
 1. **Verify refresh token** and extract session handle
 2. **Check anti-CSRF token** if enabled
@@ -170,7 +170,7 @@ The verification process:
 
 ### Key Verification Code
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/session/accessToken/AccessToken.java:62-169`:
+From [AccessToken.java:62-169](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/session/accessToken/AccessToken.java#L62-L169):
 
 ```java
 private static AccessTokenInfo getInfoFromAccessToken(
@@ -223,7 +223,7 @@ String[] revokedHandles = Session.revokeAllSessionsForUser(
 
 ### Session Deletion Process
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:819-857`:
+From [Session.java:819-857](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/session/Session.java#L819-L857):
 
 <Steps>
   <Step title="Parse Tenant ID">
@@ -267,7 +267,7 @@ SuperTokens detects token theft when:
 2. The system throws `TokenTheftDetectedException`
 3. **All sessions** for that user are automatically revoked
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:652-654`:
+From [Session.java:652-654](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/session/Session.java#L652-L654):
 
 ```java
 throw new TokenTheftDetectedException(
@@ -348,7 +348,7 @@ Sessions are tenant-aware:
 - Refresh tokens store tenant ID in encrypted payload
 - Session operations are scoped to tenant storage
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:141-144`:
+From [Session.java:141-144](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/session/Session.java#L141-L144):
 
 ```java
 String sessionHandle = UUID.randomUUID().toString();

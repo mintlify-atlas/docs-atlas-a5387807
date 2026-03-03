@@ -32,7 +32,7 @@ User → Roles → Permissions
 
 ### Storage Architecture
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:46-51`:
+From [io/supertokens/userroles/UserRoles.java:46-51](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L46-L51):
 
 <Note>
   **Roles** are stored in the public tenant storage (app-level), while **role-to-user mappings** are stored in each tenant's storage. This allows roles to be shared across all tenants in an app.
@@ -40,7 +40,7 @@ From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/User
 
 ## Creating Roles
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:124-161`:
+From [io/supertokens/userroles/UserRoles.java:124-161](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L124-L161):
 
 ```java
 public static boolean createNewRoleOrModifyItsPermissions(
@@ -120,7 +120,7 @@ UserRoles.createNewRoleOrModifyItsPermissions(
 
 ## Assigning Roles to Users
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:41-60`:
+From [io/supertokens/userroles/UserRoles.java:41-60](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L41-L60):
 
 ```java
 public static boolean addRoleToUser(
@@ -176,7 +176,7 @@ try {
 
 ## Bulk Role Assignment
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:62-109`:
+From [io/supertokens/userroles/UserRoles.java:62-109](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L62-L109):
 
 For bulk imports and batch operations:
 
@@ -257,7 +257,7 @@ UserRoles.addMultipleRolesToMultipleUsers(
 
 ## Retrieving User Roles
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:223-226`:
+From [io/supertokens/userroles/UserRoles.java:223-226](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L223-L226):
 
 ```java
 public static String[] getRolesForUser(
@@ -292,7 +292,7 @@ boolean isAdmin = Arrays.asList(roles).contains("admin");
 
 ### Get Permissions for Role
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:257-270`:
+From [io/supertokens/userroles/UserRoles.java:257-270](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L257-L270):
 
 ```java
 public static String[] getPermissionsForRole(
@@ -336,7 +336,7 @@ if (allPermissions.contains("post:delete")) {
 
 ### Delete Permissions from Role
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:280-308`:
+From [io/supertokens/userroles/UserRoles.java:280-308](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L280-L308):
 
 ```java
 public static void deletePermissionsFromRole(
@@ -378,7 +378,7 @@ public static void deletePermissionsFromRole(
 
 ### Remove Role from User
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:187-211`:
+From [io/supertokens/userroles/UserRoles.java:187-211](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L187-L211):
 
 ```java
 public static boolean removeUserRole(
@@ -411,7 +411,7 @@ public static boolean removeUserRole(
 
 ### Remove All Roles from User
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:374-378`:
+From [io/supertokens/userroles/UserRoles.java:374-378](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L374-L378):
 
 ```java
 public static int deleteAllRolesForUser(
@@ -426,7 +426,7 @@ public static int deleteAllRolesForUser(
 
 ### Delete Role Completely
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:336-353`:
+From [io/supertokens/userroles/UserRoles.java:336-353](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L336-L353):
 
 Deletes role and all user associations across all tenants:
 
@@ -472,7 +472,7 @@ public static boolean deleteRole(
 
 ### List All Roles
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:362-365`:
+From [io/supertokens/userroles/UserRoles.java:362-365](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L362-L365):
 
 ```java
 public static String[] getRoles(
@@ -486,7 +486,7 @@ public static String[] getRoles(
 
 ### Get Users with Role
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:236-247`:
+From [io/supertokens/userroles/UserRoles.java:236-247](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L236-L247):
 
 ```java
 public static String[] getUsersForRole(
@@ -508,7 +508,7 @@ public static String[] getUsersForRole(
 
 ### Get Roles with Permission
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:320-325`:
+From [io/supertokens/userroles/UserRoles.java:320-325](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/userroles/UserRoles.java#L320-L325):
 
 ```java
 public static String[] getRolesThatHavePermission(

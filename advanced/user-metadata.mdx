@@ -54,7 +54,7 @@ Metadata is stored as a JSON object per user:
 
 ## Creating/Updating Metadata
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:53-80`:
+From [io/supertokens/usermetadata/UserMetadata.java:53-80](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/usermetadata/UserMetadata.java#L53-L80):
 
 ```java
 public static JsonObject updateUserMetadata(
@@ -149,7 +149,7 @@ Updates use **shallow merge** - top-level keys are merged:
 
 ## Retrieving Metadata
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:124-136`:
+From [io/supertokens/usermetadata/UserMetadata.java:124-136](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/usermetadata/UserMetadata.java#L124-L136):
 
 ```java
 public static JsonObject getUserMetadata(
@@ -193,7 +193,7 @@ if (metadata.has("subscription")) {
 
 ## Bulk Metadata Retrieval
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:138-166`:
+From [io/supertokens/usermetadata/UserMetadata.java:138-166](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/usermetadata/UserMetadata.java#L138-L166):
 
 Get metadata for multiple users in a single query:
 
@@ -258,7 +258,7 @@ for (Map.Entry<String, JsonObject> entry : bulkMetadata.entrySet()) {
 
 ## Bulk Metadata Update
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:82-116`:
+From [io/supertokens/usermetadata/UserMetadata.java:82-116](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/usermetadata/UserMetadata.java#L82-L116):
 
 ```java
 public static void updateMultipleUsersMetadata(
@@ -345,7 +345,7 @@ System.out.println("Updated metadata for " + updates.size() + " users");
 
 ## Deleting Metadata
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:174-177`:
+From [io/supertokens/usermetadata/UserMetadata.java:174-177](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/usermetadata/UserMetadata.java#L174-L177):
 
 ```java
 public static void deleteUserMetadata(

@@ -167,7 +167,7 @@ print(f"Status: {data['status']}")
 
 The endpoint verifies that the provided `pid` parameter matches the current SuperTokens Core process ID using `ProcessHandle.current().pid()`.
 
-**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java:67`
+**Source**: [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java#L67)
 
 ### Configuration Path Resolution
 
@@ -177,13 +177,13 @@ The path is determined by:
 
 The returned path is always converted to an absolute path.
 
-**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java:68-72`
+**Source**: [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java#L68-L72)
 
 ### Tenant Restriction
 
 The endpoint enforces that it can only be called from the base tenant (public app and tenant). Requests from specific tenants or apps will fail with BadPermissionException.
 
-**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java:62-65`
+**Source**: [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java#L62-L65)
 
 ## Security Considerations
 

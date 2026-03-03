@@ -9,7 +9,7 @@ Multi-Factor Authentication (MFA) adds an additional layer of security by requir
 
 ## TOTP Implementation
 
-TOTP is implemented in `io.supertokens.totp.Totp` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java.
+TOTP is implemented in `io.supertokens.totp.Totp` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java)
 
 **Standard:** RFC 6238 (TOTP: Time-Based One-Time Password Algorithm)
 
@@ -23,7 +23,7 @@ Users can register multiple TOTP devices (e.g., multiple phones, backup devices)
 
 Create a new TOTP device for a user.
 
-Implemented in `io.supertokens.totp.Totp.registerDevice()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:170.
+**Implementation**: `io.supertokens.totp.Totp.registerDevice()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L170)
 
 **Process:**
 1. Generate a random 160-bit secret key
@@ -57,7 +57,7 @@ Implemented in `io.supertokens.totp.Totp.registerDevice()` at /home/daytona/work
 
 ### Secret Key Generation
 
-Implemented in `io.supertokens.totp.Totp.generateSecret()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:42.
+**Implementation**: `io.supertokens.totp.Totp.generateSecret()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L42)
 
 ```java
 private static String generateSecret() {
@@ -88,7 +88,7 @@ Devices must be verified before they can be used for authentication.
 
 Verify a device by validating a TOTP code.
 
-Implemented in `io.supertokens.totp.Totp.verifyDevice()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:372.
+**Implementation**: `io.supertokens.totp.Totp.verifyDevice()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L372)
 
 **Process:**
 1. Check if device exists and is unverified
@@ -133,7 +133,7 @@ Verify TOTP codes during login or sensitive operations.
 
 ### Verify Code
 
-Implemented in `io.supertokens.totp.Totp.verifyCode()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:438.
+**Implementation**: `io.supertokens.totp.Totp.verifyCode()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L438)
 
 **Validation Process:**
 1. Retrieve all verified devices for user
@@ -182,7 +182,7 @@ Implemented in `io.supertokens.totp.Totp.verifyCode()` at /home/daytona/workspac
 
 ### Code Verification Algorithm
 
-Implemented in `io.supertokens.totp.Totp.checkCode()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:52.
+**Implementation**: `io.supertokens.totp.Totp.checkCode()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L52)
 
 ```java
 private static boolean checkCode(TOTPDevice device, String code) {
@@ -215,7 +215,7 @@ private static boolean checkCode(TOTPDevice device, String code) {
 
 Protect against brute force attacks with sophisticated rate limiting.
 
-Implemented in `io.supertokens.totp.Totp.checkAndStoreCode()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:181.
+**Implementation**: `io.supertokens.totp.Totp.checkAndStoreCode()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L181)
 
 **Algorithm:**
 1. Fetch all recent code attempts (valid and invalid)
@@ -276,7 +276,7 @@ totpStorage.insertUsedCode(tenantIdentifier, usedCode);
 
 Retrieve all TOTP devices for a user.
 
-Implemented in `io.supertokens.totp.Totp.getDevices()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:550.
+**Implementation**: `io.supertokens.totp.Totp.getDevices()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L550)
 
 **API Endpoint:**
 
@@ -307,7 +307,7 @@ Implemented in `io.supertokens.totp.Totp.getDevices()` at /home/daytona/workspac
 
 Delete a TOTP device.
 
-Implemented in `io.supertokens.totp.Totp.removeDevice()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:485.
+**Implementation**: `io.supertokens.totp.Totp.removeDevice()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L485)
 
 **API Endpoint:**
 
@@ -330,7 +330,7 @@ Implemented in `io.supertokens.totp.Totp.removeDevice()` at /home/daytona/worksp
 
 Rename a TOTP device.
 
-Implemented in `io.supertokens.totp.Totp.updateDeviceName()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:531.
+**Implementation**: `io.supertokens.totp.Totp.updateDeviceName()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L531)
 
 **API Endpoint:**
 
@@ -349,7 +349,7 @@ Implemented in `io.supertokens.totp.Totp.updateDeviceName()` at /home/daytona/wo
 
 Check TOTP status for multiple users in a single query.
 
-Implemented in `io.supertokens.totp.Totp.getBulkDeviceStatus()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:565.
+**Implementation**: `io.supertokens.totp.Totp.getBulkDeviceStatus()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L565)
 
 **API Endpoint:**
 
@@ -383,7 +383,7 @@ Implemented in `io.supertokens.totp.Totp.getBulkDeviceStatus()` at /home/daytona
 
 Import TOTP devices from other systems.
 
-Implemented in `io.supertokens.totp.Totp.createDevices()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:150.
+**Implementation**: `io.supertokens.totp.Totp.createDevices()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/totp/Totp.java#L150)
 
 **API Endpoint:**
 

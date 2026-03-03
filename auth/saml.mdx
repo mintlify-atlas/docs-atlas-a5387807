@@ -17,7 +17,7 @@ SAML (Security Assertion Markup Language) 2.0 enables enterprise Single Sign-On 
 
 Configure a SAML identity provider.
 
-Implemented in `io.supertokens.saml.SAML.createOrUpdateSAMLClient()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:121.
+**Implementation**: `io.supertokens.saml.SAML.createOrUpdateSAMLClient()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L121)
 
 **API Endpoint:**
 
@@ -57,7 +57,7 @@ Implemented in `io.supertokens.saml.SAML.createOrUpdateSAMLClient()` at /home/da
 
 ### List SAML Clients
 
-Implemented in `io.supertokens.saml.SAML.getClients()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:154.
+**Implementation**: `io.supertokens.saml.SAML.getClients()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L154)
 
 **API Endpoint:**
 
@@ -81,7 +81,7 @@ Implemented in `io.supertokens.saml.SAML.getClients()` at /home/daytona/workspac
 
 ### Remove SAML Client
 
-Implemented in `io.supertokens.saml.SAML.removeSAMLClient()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:164.
+**Implementation**: `io.supertokens.saml.SAML.removeSAMLClient()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L164)
 
 **API Endpoint:**
 
@@ -100,7 +100,7 @@ Implemented in `io.supertokens.saml.SAML.removeSAMLClient()` at /home/daytona/wo
 
 Initiate SAML authentication.
 
-Implemented in `io.supertokens.saml.SAML.createRedirectURL()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:201.
+**Implementation**: `io.supertokens.saml.SAML.createRedirectURL()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L201)
 
 **API Endpoint:**
 
@@ -135,7 +135,7 @@ Implemented in `io.supertokens.saml.SAML.createRedirectURL()` at /home/daytona/w
 
 ### SAML AuthnRequest Structure
 
-Implemented in `io.supertokens.saml.SAML.buildAuthnRequest()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:259.
+**Implementation**: `io.supertokens.saml.SAML.buildAuthnRequest()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L259)
 
 ```xml
 <samlp:AuthnRequest
@@ -161,7 +161,7 @@ Implemented in `io.supertokens.saml.SAML.buildAuthnRequest()` at /home/daytona/w
 
 Process SAML response from IdP.
 
-Implemented in `io.supertokens.saml.SAML.handleCallback()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:417.
+**Implementation**: `io.supertokens.saml.SAML.handleCallback()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L417)
 
 **API Endpoint:**
 
@@ -193,7 +193,7 @@ Location: https://yourapp.com/callback?code=authorization-code&state=original-st
 
 Exchange code for user claims.
 
-Implemented in `io.supertokens.saml.SAML.getUserInfo()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:597.
+**Implementation**: `io.supertokens.saml.SAML.getUserInfo()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L597)
 
 **API Endpoint:**
 
@@ -228,7 +228,7 @@ Implemented in `io.supertokens.saml.SAML.getUserInfo()` at /home/daytona/workspa
 
 Generate SP metadata for IdP configuration.
 
-Implemented in `io.supertokens.saml.SAML.getMetadataXML()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:655.
+**Implementation**: `io.supertokens.saml.SAML.getMetadataXML()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L655)
 
 **API Endpoint:**
 
@@ -266,7 +266,7 @@ Implemented in `io.supertokens.saml.SAML.getMetadataXML()` at /home/daytona/work
 
 ### Signature Verification
 
-Implemented in `io.supertokens.saml.SAML.verifySamlResponseSignature()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:363.
+**Implementation**: `io.supertokens.saml.SAML.verifySamlResponseSignature()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L363)
 
 **Verification Steps:**
 1. Check Response signature OR
@@ -281,7 +281,7 @@ Implemented in `io.supertokens.saml.SAML.verifySamlResponseSignature()` at /home
 
 ### Timestamp Validation
 
-Implemented in `io.supertokens.saml.SAML.validateSamlResponseTimestamps()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:387.
+**Implementation**: `io.supertokens.saml.SAML.validateSamlResponseTimestamps()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L387)
 
 **Checks:**
 - Response IssueInstant (±5 minutes clock skew)
@@ -290,7 +290,7 @@ Implemented in `io.supertokens.saml.SAML.validateSamlResponseTimestamps()` at /h
 
 ### Audience Validation
 
-Implemented in `io.supertokens.saml.SAML.validateSamlResponseAudience()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:497.
+**Implementation**: `io.supertokens.saml.SAML.validateSamlResponseAudience()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L497)
 
 **Process:**
 1. Extract AudienceRestriction from Conditions
@@ -299,7 +299,7 @@ Implemented in `io.supertokens.saml.SAML.validateSamlResponseAudience()` at /hom
 
 ## Claims Extraction
 
-Implemented in `io.supertokens.saml.SAML.extractAllClaims()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:535.
+**Implementation**: `io.supertokens.saml.SAML.extractAllClaims()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L535)
 
 **Extracted Claims:**
 
@@ -367,7 +367,7 @@ Sign SAML authentication requests.
 
 **Implementation:**
 
-See `io.supertokens.saml.SAML.buildAuthnRequest()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:259.
+**See also**: `io.supertokens.saml.SAML.buildAuthnRequest()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/saml/SAML.java#L259)
 
 **Process:**
 1. Build AuthnRequest XML

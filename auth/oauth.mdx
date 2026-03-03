@@ -15,7 +15,7 @@ SuperTokens can act as an OAuth 2.0 authorization server, allowing your applicat
 
 #### Create or Update OAuth Client
 
-Implemented in `io.supertokens.oauth.OAuth.addOrUpdateClient()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:360.
+**Implementation**: `io.supertokens.oauth.OAuth.addOrUpdateClient()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L360)
 
 **API Endpoint:**
 
@@ -109,7 +109,7 @@ GET /recipe/oauth/auth?client_id=my-client&redirect_uri=https://app.com/callback
 
 Exchange authorization code for access tokens.
 
-Implemented in `io.supertokens.oauth.OAuth.doOAuthProxyFormPOST()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:114.
+**Implementation**: `io.supertokens.oauth.OAuth.doOAuthProxyFormPOST()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L114)
 
 **API Endpoint:**
 
@@ -185,7 +185,7 @@ Implemented in `io.supertokens.oauth.OAuth.doOAuthProxyFormPOST()` at /home/dayt
 
 Validate and inspect access tokens.
 
-Implemented in `io.supertokens.oauth.OAuth.introspectAccessToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:510.
+**Implementation**: `io.supertokens.oauth.OAuth.introspectAccessToken()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L510)
 
 **API Endpoint:**
 
@@ -227,7 +227,7 @@ Revoke access tokens, refresh tokens, or entire sessions.
 
 **Revoke Refresh Token:**
 
-Implemented in `io.supertokens.oauth.OAuth.revokeRefreshToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:545.
+**Implementation**: `io.supertokens.oauth.OAuth.revokeRefreshToken()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L545)
 
 **POST** `/recipe/oauth/tokens/revoke`
 ```json
@@ -238,7 +238,7 @@ Implemented in `io.supertokens.oauth.OAuth.revokeRefreshToken()` at /home/dayton
 
 **Revoke Access Token:**
 
-Implemented in `io.supertokens.oauth.OAuth.revokeAccessToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:551.
+**Implementation**: `io.supertokens.oauth.OAuth.revokeAccessToken()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L551)
 
 **POST** `/recipe/oauth/token/revoke`
 ```json
@@ -249,7 +249,7 @@ Implemented in `io.supertokens.oauth.OAuth.revokeAccessToken()` at /home/daytona
 
 **Revoke Session:**
 
-Implemented in `io.supertokens.oauth.OAuth.revokeSessionHandle()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:567.
+**Implementation**: `io.supertokens.oauth.OAuth.revokeSessionHandle()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L567)
 
 **POST** `/recipe/oauth/session/revoke`
 ```json
@@ -260,7 +260,7 @@ Implemented in `io.supertokens.oauth.OAuth.revokeSessionHandle()` at /home/dayto
 
 **Revoke by Client ID:**
 
-Implemented in `io.supertokens.oauth.OAuth.revokeTokensForClientId()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:539.
+**Implementation**: `io.supertokens.oauth.OAuth.revokeTokensForClientId()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L539)
 
 **POST** `/recipe/oauth/tokens/revoke`
 ```json
@@ -401,7 +401,7 @@ oauth_client_secret_encryption_key: "base64-encoded-key"
 
 **Implementation:**
 
-See `io.supertokens.oauth.OAuth.encryptClientSecret()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:368.
+**See also**: `io.supertokens.oauth.OAuth.encryptClientSecret()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L368)
 
 ## PKCE Support
 
@@ -438,7 +438,7 @@ GET /recipe/oauth/auth?
 
 ## Logout Flow
 
-Implemented in `io.supertokens.oauth.OAuth.createLogoutRequestAndReturnRedirectUri()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:591.
+**Implementation**: `io.supertokens.oauth.OAuth.createLogoutRequestAndReturnRedirectUri()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L591)
 
 **Create Logout Request:**
 
@@ -464,7 +464,7 @@ Implemented in `io.supertokens.oauth.OAuth.createLogoutRequestAndReturnRedirectU
 
 **Consume Logout Challenge:**
 
-Implemented in `io.supertokens.oauth.OAuth.consumeLogoutChallengeAndGetRedirectUri()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:609.
+**Implementation**: `io.supertokens.oauth.OAuth.consumeLogoutChallengeAndGetRedirectUri()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L609)
 
 ## Configuration
 
@@ -493,7 +493,7 @@ Tokens can be revoked:
 
 **Revocation Checking:**
 
-See `io.supertokens.oauth.OAuth.isTokenRevokedBasedOnPayload()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:498.
+**See also**: `io.supertokens.oauth.OAuth.isTokenRevokedBasedOnPayload()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L498)
 
 ### State Parameter
 
@@ -519,7 +519,7 @@ Redirect URIs must:
 
 Track machine-to-machine (client credentials) tokens for analytics.
 
-Implemented in `io.supertokens.oauth.OAuth.addM2MToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:583.
+**Implementation**: `io.supertokens.oauth.OAuth.addM2MToken()` - [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/oauth/OAuth.java#L583)
 
 ## Error Handling
 

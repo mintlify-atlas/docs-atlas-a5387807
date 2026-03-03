@@ -27,7 +27,7 @@ SuperTokens supports multiple password hashing algorithms:
 
 ### Argon2 Configuration
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/emailpassword/PasswordHashing.java`:
+From [io/supertokens/emailpassword/PasswordHashing.java](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/emailpassword/PasswordHashing.java):
 
 <ParamField path="argon2_iterations" type="number" default="1">
   Number of iterations (time cost)
@@ -121,7 +121,7 @@ public class JWTSigningKeyInfo {
 
 ### Key Rotation
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/signingkeys/SigningKeys.java`:
+From [io/supertokens/signingkeys/SigningKeys.java](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/signingkeys/SigningKeys.java):
 
 <Steps>
   <Step title="Generate New Key">
@@ -147,7 +147,7 @@ From `/home/daytona/workspace/source/src/main/java/io/supertokens/signingkeys/Si
 
 ### JWT Creation
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/jwt/JWTSigningFunctions.java:84-147`:
+From [io/supertokens/jwt/JWTSigningFunctions.java:84-147](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/jwt/JWTSigningFunctions.java#L84-L147):
 
 ```java
 public static String createJWTToken(
@@ -278,7 +278,7 @@ graph TD
     I --> J[Force Re-login]
 ```
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:652-654`:
+From [io/supertokens/session/Session.java:652-654](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/session/Session.java#L652-L654):
 
 ```java
 if (parentTokenUsed) {
@@ -378,7 +378,7 @@ Similar to password reset tokens:
 
 ### Hashing Utilities
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/utils/Utils.java`:
+From [io/supertokens/utils/Utils.java](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/utils/Utils.java):
 
 ```java
 // SHA-256 hashing
@@ -459,7 +459,7 @@ Connection pooling prevents:
 
 ### Protected Configurations
 
-From `/home/daytona/workspace/source/src/main/java/io/supertokens/multitenancy/Multitenancy.java:174-179`:
+From [io/supertokens/multitenancy/Multitenancy.java:174-179](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/multitenancy/Multitenancy.java#L174-L179):
 
 These configs **cannot be changed** after tenant creation:
 

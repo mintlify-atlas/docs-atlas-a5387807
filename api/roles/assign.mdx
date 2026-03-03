@@ -66,7 +66,7 @@ curl -X PUT https://your-api-domain.com/recipe/user/role \
 
 ## Implementation Details
 
-**Source**: `/workspace/source/src/main/java/io/supertokens/webserver/api/userroles/AddUserRoleAPI.java:37`
+**Source**: [View source](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/webserver/api/userroles/AddUserRoleAPI.java#L37)
 
 - Role names are trimmed of leading/trailing whitespace before processing
 - The role must be created first using the [Create Role](/api/roles/create) endpoint
@@ -81,11 +81,6 @@ curl -X PUT https://your-api-domain.com/recipe/user/role \
 
 ## Related Endpoints
 
-<CardGroup cols={2}>
-  <Card title="Get User Roles" href="/api/roles/get-user-roles">
-    Retrieve all roles assigned to a user
-  </Card>
-  <Card title="Remove User Role" href="/api/roles/remove-user-role">
-    Remove a role from a user
-  </Card>
-</CardGroup>
+<Card title="Role Management Overview" href="/api/roles/overview">
+  See all role management endpoints
+</Card>
