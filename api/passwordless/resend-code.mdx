@@ -1,0 +1,92 @@
+---
+title: 'Resend Passwordless Code'
+description: 'Generate a new code for an existing authentication attempt'
+---
+
+## Overview
+
+To resend a passwordless code, use the [Create Code endpoint](/api/passwordless/create-code) with the `deviceId` parameter.
+
+## How It Works
+
+When you call the Create Code endpoint with an existing `deviceId`, it generates a new code for that device while maintaining the same authentication session. This is the recommended way to implement code resend functionality.
+
+## Request
+
+```bash
+POST /recipe/signinup/code
+```
+
+**Request Body:**
+
+```json
+{
+  "deviceId": "existing-device-id"
+}
+```
+
+## Response
+
+Same as [Create Code](/api/passwordless/create-code#response):
+
+```json
+{
+  "status": "OK",
+  "preAuthSessionId": "string",
+  "codeId": "string",
+  "deviceId": "string",
+  "userInputCode": "string",
+  "linkCode": "string",
+  "timeCreated": 1234567890,
+  "codeLifetime": 900000
+}
+```
+
+## Example
+
+```bash
+curl -X POST https://your-api.com/recipe/signinup/code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deviceId": "abc123-device-id"
+  }'
+```
+
+## Implementation Example
+
+```javascript
+// Initial code creation
+const { deviceId, userInputCode } = await createCode({
+  email: "user@example.com"
+});
+
+// Send code to user...
+
+// User requests resend
+const { userInputCode: newCode } = await createCode({
+  deviceId: deviceId  // Use the same deviceId
+});
+
+// Send new code to user...
+```
+
+## Notes
+
+- The `deviceId` must be from a valid, active authentication session
+- The `preAuthSessionId` remains the same across resends
+- Failed verification attempts are tracked across all codes for the device
+- If the device is invalid or expired, you'll receive a `RESTART_FLOW_ERROR`
+- Each resend generates a new `userInputCode` and `linkCode`
+- The previous code is invalidated when a new one is created
+
+## Error Handling
+
+If the device ID is invalid or the session has expired:
+
+```json
+{
+  "status": "RESTART_FLOW_ERROR"
+}
+```
+
+In this case, you should restart the authentication flow by creating a new code with the user's email or phone number.

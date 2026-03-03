@@ -1,0 +1,82 @@
+---
+title: Get User Metadata
+description: Retrieve metadata for a specific user
+---
+
+## Endpoint
+
+```
+GET /recipe/user/metadata
+```
+
+This is an app-specific API that retrieves metadata associated with a user.
+
+## Query Parameters
+
+<ParamField query="userId" type="string" required>
+  The ID of the user whose metadata you want to retrieve.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X GET "https://your-api-domain.com/recipe/user/metadata?userId=user123" \
+  -H "Content-Type: application/json"
+```
+
+## Response
+
+<ResponseField name="status" type="string">
+  Always returns `"OK"`
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  A JSON object containing the user's metadata. Returns an empty object `{}` if no metadata exists for the user.
+</ResponseField>
+
+## Response Example
+
+```json
+{
+  "status": "OK",
+  "metadata": {
+    "preferences": {
+      "theme": "dark",
+      "language": "en"
+    },
+    "lastLoginLocation": "New York",
+    "accountType": "premium"
+  }
+}
+```
+
+## Empty Metadata Response
+
+```json
+{
+  "status": "OK",
+  "metadata": {}
+}
+```
+
+## Implementation Details
+
+**Source**: `/workspace/source/src/main/java/io/supertokens/webserver/api/usermetadata/UserMetadataAPI.java:39`
+
+- This API requires public tenant access
+- Returns an empty object if the user has no metadata
+- Metadata is stored as a JSON object and can contain any valid JSON structure
+- User ID mapping is automatically handled for app-specific queries
+
+## Use Cases
+
+- Retrieve user preferences and settings
+- Get custom user profile information
+- Fetch application-specific user data
+- Access metadata for user personalization
+
+## Related Endpoints
+
+<Card title="Update User Metadata" href="/api/metadata/update">
+  Update or create user metadata
+</Card>

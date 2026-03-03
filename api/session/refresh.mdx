@@ -1,0 +1,379 @@
+---
+title: 'Refresh Session'
+description: 'Refresh session tokens to extend session lifetime'
+---
+
+## Endpoint
+
+```
+POST /recipe/session/refresh
+```
+
+Exchanges a refresh token for new access and refresh tokens, extending the session lifetime. Implements automatic token rotation for enhanced security.
+
+## Request Body
+
+<ParamField body="refreshToken" type="string" required>
+  The refresh token obtained during session creation or previous refresh. This is an opaque token that should be stored securely on the client.
+</ParamField>
+
+<ParamField body="antiCsrfToken" type="string">
+  The anti-CSRF token associated with the refresh token (required if anti-CSRF is enabled).
+</ParamField>
+
+<ParamField body="enableAntiCsrf" type="boolean" required>
+  Whether anti-CSRF protection is enabled for this session. Must match the value used during session creation.
+</ParamField>
+
+<ParamField body="useDynamicSigningKey" type="boolean">
+  Whether to use dynamic signing keys for the new access token. Available in CDI >= 3.0.
+  
+  - `true` - Uses rotating keys for enhanced security (default for CDI < 5.0)
+  - `false` - Uses static key for simplified verification
+  - `null` - Uses the existing session's signing key preference
+</ParamField>
+
+## Response
+
+### Success Response
+
+<ResponseField name="status" type="string">
+  Returns `"OK"` on successful refresh.
+</ResponseField>
+
+<ResponseField name="session" type="object">
+  Session metadata
+  
+  <Expandable title="Session object">
+    <ResponseField name="handle" type="string">
+      Unique session identifier (unchanged from original session).
+    </ResponseField>
+    
+    <ResponseField name="userId" type="string">
+      Primary user ID associated with the session.
+    </ResponseField>
+    
+    <ResponseField name="recipeUserId" type="string">
+      Recipe-specific user ID (CDI version >= 4.0).
+    </ResponseField>
+    
+    <ResponseField name="userDataInJWT" type="object">
+      The custom data stored in the JWT payload.
+    </ResponseField>
+    
+    <ResponseField name="tenantId" type="string">
+      Tenant ID for the session (CDI version >= 3.0).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="accessToken" type="object">
+  New access token
+  
+  <Expandable title="Token details">
+    <ResponseField name="token" type="string">
+      New JWT access token to replace the old one.
+    </ResponseField>
+    
+    <ResponseField name="expiry" type="number">
+      Unix timestamp (milliseconds) when the token expires.
+    </ResponseField>
+    
+    <ResponseField name="createdTime" type="number">
+      Unix timestamp (milliseconds) when the token was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="refreshToken" type="object">
+  New refresh token
+  
+  <Expandable title="Token details">
+    <ResponseField name="token" type="string">
+      New refresh token to replace the old one. The old refresh token is now invalid.
+    </ResponseField>
+    
+    <ResponseField name="expiry" type="number">
+      Unix timestamp (milliseconds) when the token expires.
+    </ResponseField>
+    
+    <ResponseField name="createdTime" type="number">
+      Unix timestamp (milliseconds) when the token was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Error status code:
+  - `"UNAUTHORISED"` - Invalid or expired refresh token
+  - `"TOKEN_THEFT_DETECTED"` - Refresh token reuse detected
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error description explaining why the refresh failed.
+</ResponseField>
+
+<ResponseField name="session" type="object">
+  Session information when token theft is detected (only for `TOKEN_THEFT_DETECTED` status)
+  
+  <Expandable title="Theft detection details">
+    <ResponseField name="handle" type="string">
+      Session handle that was compromised.
+    </ResponseField>
+    
+    <ResponseField name="userId" type="string">
+      Primary user ID whose session was compromised.
+    </ResponseField>
+    
+    <ResponseField name="recipeUserId" type="string">
+      Recipe-specific user ID.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.com/recipe/session/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "def456...",
+    "antiCsrfToken": "anti-csrf-token-value",
+    "enableAntiCsrf": true,
+    "useDynamicSigningKey": true
+  }'
+```
+
+## Example Responses
+
+### Successful Refresh
+
+```json
+{
+  "status": "OK",
+  "session": {
+    "handle": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "userId": "user123",
+    "recipeUserId": "user123",
+    "userDataInJWT": {
+      "role": "admin",
+      "email": "user@example.com"
+    },
+    "tenantId": "public"
+  },
+  "accessToken": {
+    "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiry": 1640003600000,
+    "createdTime": 1640000000000
+  },
+  "refreshToken": {
+    "token": "ghi789...",
+    "expiry": 1648003600000,
+    "createdTime": 1640000000000
+  },
+  "antiCsrfToken": "new-anti-csrf-token-value"
+}
+```
+
+### Unauthorized Response
+
+```json
+{
+  "status": "UNAUTHORISED",
+  "message": "Session missing in db or has expired"
+}
+```
+
+### Token Theft Detected
+
+```json
+{
+  "status": "TOKEN_THEFT_DETECTED",
+  "session": {
+    "handle": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "userId": "user123",
+    "recipeUserId": "user123"
+  }
+}
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+Implemented in:
+- API Handler: `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/session/RefreshSessionAPI.java:64`
+- Session Logic: `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:543`
+
+### Refresh Process
+
+1. **Validate Refresh Token** - Decrypts and verifies the refresh token structure
+2. **Check Anti-CSRF** - Validates anti-CSRF token if enabled
+3. **Database Transaction** - Atomic operation to prevent race conditions
+4. **Verify Token Chain** - Checks refresh token hash matches database
+5. **Detect Token Theft** - Identifies if an old refresh token was reused
+6. **Rotate Tokens** - Creates new access and refresh tokens
+7. **Update Database** - Stores new refresh token hash
+8. **Update Active Users** - Records user activity timestamp
+
+### Token Rotation
+
+SuperTokens implements automatic refresh token rotation:
+
+1. Each refresh creates a **new refresh token**
+2. The **old refresh token becomes invalid**
+3. New tokens include reference to parent token hash
+4. Database tracks the current valid refresh token hash
+
+### Token Theft Detection
+
+Token theft is detected when:
+
+1. A refresh token is used that doesn't match the current valid token in the database
+2. The token also doesn't match the parent token (normal rotation scenario)
+3. This indicates an old token was stolen and reused
+
+When theft is detected:
+- **All sessions for the user are immediately revoked**
+- `TOKEN_THEFT_DETECTED` response is returned
+- The session handle and user IDs are provided for logging
+
+## Security Considerations
+
+### Token Rotation Security
+
+<Warning>
+  **Always Use Latest Tokens**: After a successful refresh, clients MUST use the new refresh token. Using an old refresh token will trigger theft detection and revoke all user sessions.
+</Warning>
+
+<Tip>
+  **Atomic Token Updates**: Update both access and refresh tokens atomically in client storage to prevent using mismatched tokens.
+</Tip>
+
+### Anti-CSRF Protection
+
+<Note>
+  When anti-CSRF is enabled, a new anti-CSRF token is generated with each refresh. Update the stored anti-CSRF token on the client.
+</Note>
+
+### Token Theft Response
+
+<Warning>
+  **Security Alert**: A `TOKEN_THEFT_DETECTED` response indicates a potential security breach. Log this event, alert security teams, and potentially notify the user.
+</Warning>
+
+Recommended actions on token theft detection:
+
+1. **Log the Event** - Record session handle, user ID, IP address, and timestamp
+2. **Alert Security** - Notify security monitoring systems
+3. **User Notification** - Consider emailing the user about suspicious activity
+4. **Force Logout** - Clear all client-side session data
+5. **Require Re-authentication** - User must log in again
+
+## Common Use Cases
+
+### Automatic Token Refresh
+
+```javascript
+// Refresh tokens when access token expires
+async function refreshSession(refreshToken, antiCsrfToken) {
+  const response = await fetch('https://your-domain.com/recipe/session/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      refreshToken,
+      antiCsrfToken,
+      enableAntiCsrf: true,
+      useDynamicSigningKey: true
+    })
+  });
+  
+  const data = await response.json();
+  
+  if (data.status === 'OK') {
+    // Update stored tokens
+    localStorage.setItem('accessToken', data.accessToken.token);
+    localStorage.setItem('refreshToken', data.refreshToken.token);
+    localStorage.setItem('antiCsrfToken', data.antiCsrfToken);
+    return true;
+  } else if (data.status === 'TOKEN_THEFT_DETECTED') {
+    // Security breach detected
+    console.error('Token theft detected!', data.session);
+    logout();
+    return false;
+  } else {
+    // Unauthorized - session expired or invalid
+    logout();
+    return false;
+  }
+}
+```
+
+### Handling Refresh in API Calls
+
+```javascript
+// Retry API call after refreshing tokens
+async function apiCallWithRefresh(url, options) {
+  let response = await fetch(url, options);
+  
+  // If access token expired, try to refresh
+  if (response.status === 401) {
+    const refreshed = await refreshSession(
+      localStorage.getItem('refreshToken'),
+      localStorage.getItem('antiCsrfToken')
+    );
+    
+    if (refreshed) {
+      // Retry with new access token
+      options.headers['Authorization'] = `Bearer ${localStorage.getItem('accessToken')}`;
+      response = await fetch(url, options);
+    }
+  }
+  
+  return response;
+}
+```
+
+## Error Handling
+
+### Unauthorized Errors
+
+Common causes:
+- Refresh token has expired
+- Session was revoked
+- Refresh token is invalid or corrupted
+- Anti-CSRF token doesn't match
+- Session not found in database
+
+**Client Action**: Clear session data and redirect to login
+
+### Token Theft Detection
+
+Causes:
+- Old refresh token was reused after new one was issued
+- Indicates potential token theft or client-side storage issues
+
+**Client Action**: 
+1. Clear all session data
+2. Log security event
+3. Show security alert to user
+4. Redirect to login
+
+## Best Practices
+
+1. **Refresh Proactively** - Refresh tokens before access token expires (e.g., 5 minutes before)
+2. **Handle Failures Gracefully** - On refresh failure, log out user rather than retrying
+3. **Secure Storage** - Store refresh tokens in httpOnly cookies or secure storage
+4. **Monitor Theft Detection** - Alert on TOKEN_THEFT_DETECTED responses
+5. **Update Atomically** - Update all tokens (access, refresh, anti-CSRF) together
+6. **Rate Limit** - Implement rate limiting to prevent refresh token brute force
+
+## CDI Version Compatibility
+
+- **CDI < 2.21**: Returns `idRefreshToken` in response
+- **CDI >= 2.21**: `idRefreshToken` removed from response
+- **CDI >= 3.0**: `useDynamicSigningKey` parameter available, `tenantId` in response
+- **CDI >= 4.0**: `recipeUserId` included in session response
+- **CDI >= 5.0**: `useDynamicSigningKey` defaults to `null` instead of `true`

@@ -1,0 +1,193 @@
+---
+title: Bulk Import Users
+description: Endpoints for adding users to bulk import queue
+---
+
+## Add Users for Bulk Import
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/bulk-import/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "users": [
+      {
+        "externalUserId": "user-123",
+        "userMetadata": {"plan": "premium"},
+        "userRoles": ["admin"],
+        "totpDevices": [],
+        "loginMethods": [
+          {
+            "recipeId": "emailpassword",
+            "email": "user@example.com",
+            "passwordHash": "$2a$11$hashed_password",
+            "hashingAlgorithm": "bcrypt",
+            "isPrimary": true,
+            "isVerified": true,
+            "timeJoinedInMSSinceEpoch": 1234567890000,
+            "tenantIds": ["public"]
+          }
+        ]
+      }
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "users": [
+    {
+      "id": "generated-bulk-import-id",
+      "status": "NEW"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+<ParamField path="users" type="array" required>
+  Array of user objects to import (max 10,000 users)
+</ParamField>
+
+<ParamField path="users[].externalUserId" type="string">
+  External user identifier from source system
+</ParamField>
+
+<ParamField path="users[].userMetadata" type="object">
+  Custom user metadata as key-value pairs
+</ParamField>
+
+<ParamField path="users[].userRoles" type="array">
+  Array of role names to assign to the user
+</ParamField>
+
+<ParamField path="users[].totpDevices" type="array">
+  Array of TOTP device configurations
+</ParamField>
+
+<ParamField path="users[].loginMethods" type="array" required>
+  Array of login method objects (at least one required)
+</ParamField>
+
+<ParamField path="users[].loginMethods[].recipeId" type="string" required>
+  Recipe ID: "emailpassword", "thirdparty", or "passwordless"
+</ParamField>
+
+<ParamField path="users[].loginMethods[].email" type="string">
+  Email address for the login method
+</ParamField>
+
+<ParamField path="users[].loginMethods[].passwordHash" type="string">
+  Hashed password (for emailpassword recipe)
+</ParamField>
+
+<ParamField path="users[].loginMethods[].hashingAlgorithm" type="string">
+  Hashing algorithm used: "bcrypt", "argon2", etc.
+</ParamField>
+
+<ParamField path="users[].loginMethods[].isPrimary" type="boolean">
+  Whether this is the primary login method
+</ParamField>
+
+<ParamField path="users[].loginMethods[].isVerified" type="boolean">
+  Whether the email/phone is verified
+</ParamField>
+
+<ParamField path="users[].loginMethods[].timeJoinedInMSSinceEpoch" type="number">
+  Original join timestamp in milliseconds
+</ParamField>
+
+<ParamField path="users[].loginMethods[].tenantIds" type="array">
+  Array of tenant IDs this login method belongs to
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK"
+</ResponseField>
+
+<ResponseField name="users" type="array">
+  Array of objects containing the generated bulk import ID and status for each user
+</ResponseField>
+
+<ResponseField name="users[].id" type="string">
+  Generated bulk import user ID
+</ResponseField>
+
+<ResponseField name="users[].status" type="string">
+  Initial status: "NEW"
+</ResponseField>
+
+---
+
+## Import User Immediately
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/bulk-import/import \
+  -H "Content-Type: application/json" \
+  -d '{
+    "externalUserId": "user-123",
+    "userMetadata": {"plan": "premium"},
+    "userRoles": ["admin"],
+    "totpDevices": [],
+    "loginMethods": [
+      {
+        "recipeId": "emailpassword",
+        "email": "user@example.com",
+        "passwordHash": "$2a$11$hashed_password",
+        "hashingAlgorithm": "bcrypt",
+        "isPrimary": true,
+        "isVerified": true,
+        "timeJoinedInMSSinceEpoch": 1234567890000,
+        "tenantIds": ["public"]
+      }
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "user": {
+    "id": "user-id",
+    "isPrimaryUser": false,
+    "tenantIds": ["public"],
+    "emails": ["user@example.com"],
+    "phoneNumbers": [],
+    "thirdParty": [],
+    "loginMethods": [
+      {
+        "recipeId": "emailpassword",
+        "recipeUserId": "recipe-user-id",
+        "tenantIds": ["public"],
+        "email": "user@example.com",
+        "timeJoined": 1234567890,
+        "verified": true
+      }
+    ],
+    "timeJoined": 1234567890
+  }
+}
+```
+</ResponseExample>
+
+<ParamField body="*" type="object">
+  Same user object structure as batch import (see above)
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK" on success
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Imported user object with all login methods and metadata
+</ResponseField>
+
+<ResponseField name="errors" type="array">
+  Array of error messages if import failed
+</ResponseField>

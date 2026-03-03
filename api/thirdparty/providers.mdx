@@ -1,0 +1,349 @@
+---
+title: 'Provider Configuration'
+description: 'Managing third-party OAuth provider configurations'
+---
+
+## Overview
+
+Third-party providers (OAuth 2.0 and OpenID Connect providers) are configured at the tenant level in SuperTokens Core. This allows for flexible multi-tenant setups where different tenants can have different social login options.
+
+## Supported Providers
+
+SuperTokens supports any OAuth 2.0 or OpenID Connect compliant provider, including:
+
+- **Google** - OAuth 2.0
+- **Facebook** - OAuth 2.0
+- **GitHub** - OAuth 2.0
+- **Apple** - OAuth 2.0 with Sign in with Apple
+- **Microsoft** - OAuth 2.0 / OIDC
+- **LinkedIn** - OAuth 2.0
+- **Twitter** - OAuth 2.0
+- **Custom Providers** - Any OAuth 2.0 / OIDC provider
+
+## Configuration Structure
+
+Providers are configured through the tenant configuration. Each provider configuration includes:
+
+### Provider Properties
+
+<ParamField path="thirdPartyId" type="string" required>
+  Unique identifier for the provider (e.g., "google", "facebook", "github")
+</ParamField>
+
+<ParamField path="clients" type="array" required>
+  Array of client configurations for the provider
+  
+  <Expandable title="client properties">
+    <ParamField path="clientId" type="string" required>
+      OAuth client ID from the provider
+    </ParamField>
+    
+    <ParamField path="clientSecret" type="string" required>
+      OAuth client secret from the provider
+    </ParamField>
+    
+    <ParamField path="scope" type="array">
+      OAuth scopes to request (e.g., ["email", "profile"])
+    </ParamField>
+    
+    <ParamField path="additionalConfig" type="object">
+      Provider-specific additional configuration
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Provider Configuration via Tenant API
+
+Providers are managed through the Multi-tenancy API. You can configure providers when creating or updating a tenant.
+
+### Example: Configuring Google Provider
+
+```bash
+curl -X PUT https://your-domain.com/recipe/multitenancy/tenant \
+  -H "api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenantId": "customer1",
+    "thirdPartyEnabled": true,
+    "thirdPartyProviders": [
+      {
+        "thirdPartyId": "google",
+        "clients": [
+          {
+            "clientId": "your-google-client-id",
+            "clientSecret": "your-google-client-secret",
+            "scope": ["email", "profile"]
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+### Example: Multiple Providers
+
+```bash
+curl -X PUT https://your-domain.com/recipe/multitenancy/tenant \
+  -H "api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenantId": "customer1",
+    "thirdPartyEnabled": true,
+    "thirdPartyProviders": [
+      {
+        "thirdPartyId": "google",
+        "clients": [
+          {
+            "clientId": "google-client-id",
+            "clientSecret": "google-client-secret"
+          }
+        ]
+      },
+      {
+        "thirdPartyId": "github",
+        "clients": [
+          {
+            "clientId": "github-client-id",
+            "clientSecret": "github-client-secret",
+            "scope": ["user:email"]
+          }
+        ]
+      },
+      {
+        "thirdPartyId": "facebook",
+        "clients": [
+          {
+            "clientId": "facebook-app-id",
+            "clientSecret": "facebook-app-secret",
+            "scope": ["email", "public_profile"]
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+## Provider-Specific Configuration
+
+### Google
+
+```json
+{
+  "thirdPartyId": "google",
+  "clients": [
+    {
+      "clientId": "your-client-id.apps.googleusercontent.com",
+      "clientSecret": "your-client-secret",
+      "scope": ["email", "profile", "openid"]
+    }
+  ]
+}
+```
+
+**Required Scopes**: `email`, `profile`, `openid`
+
+**Email Verification**: Google emails are typically verified by default
+
+### Facebook
+
+```json
+{
+  "thirdPartyId": "facebook",
+  "clients": [
+    {
+      "clientId": "your-facebook-app-id",
+      "clientSecret": "your-facebook-app-secret",
+      "scope": ["email", "public_profile"]
+    }
+  ]
+}
+```
+
+**Required Scopes**: `email`, `public_profile`
+
+**Email Verification**: Facebook emails may not be verified
+
+### GitHub
+
+```json
+{
+  "thirdPartyId": "github",
+  "clients": [
+    {
+      "clientId": "your-github-client-id",
+      "clientSecret": "your-github-client-secret",
+      "scope": ["user:email"]
+    }
+  ]
+}
+```
+
+**Required Scopes**: `user:email`
+
+**Email Verification**: GitHub emails are verified if the user has verified them on GitHub
+
+### Apple
+
+```json
+{
+  "thirdPartyId": "apple",
+  "clients": [
+    {
+      "clientId": "your-apple-service-id",
+      "clientSecret": {
+        "keyId": "your-key-id",
+        "teamId": "your-team-id",
+        "privateKey": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+      },
+      "scope": ["email", "name"]
+    }
+  ]
+}
+```
+
+**Required Scopes**: `email`, `name`
+
+**Special Configuration**: Apple requires a private key for client secret generation
+
+## Enabling/Disabling Third-Party Login
+
+You can enable or disable third-party login for a specific tenant:
+
+```bash
+curl -X PUT https://your-domain.com/recipe/multitenancy/tenant \
+  -H "api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenantId": "customer1",
+    "thirdPartyEnabled": false
+  }'
+```
+
+<Warning>
+  When `thirdPartyEnabled` is set to `false`, all third-party sign-in attempts for that tenant will fail with a `BadPermissionException`.
+</Warning>
+
+## Checking Provider Configuration
+
+Retrieve the current tenant configuration to see enabled providers:
+
+```bash
+curl -X GET https://your-domain.com/recipe/multitenancy/tenant?tenantId=customer1 \
+  -H "api-key: your-api-key"
+```
+
+## Multi-Tenant Provider Strategy
+
+### Strategy 1: Shared Providers
+
+Use the same OAuth app for all tenants:
+
+```json
+// Tenant A and Tenant B both use the same Google OAuth app
+{
+  "thirdPartyId": "google",
+  "clients": [
+    {
+      "clientId": "shared-client-id",
+      "clientSecret": "shared-client-secret"
+    }
+  ]
+}
+```
+
+**Pros**: Simple setup, single OAuth app to manage
+
+**Cons**: All users appear to come from the same OAuth app
+
+### Strategy 2: Tenant-Specific Providers
+
+Use different OAuth apps per tenant:
+
+```json
+// Tenant A
+{
+  "thirdPartyId": "google",
+  "clients": [
+    {
+      "clientId": "tenant-a-client-id",
+      "clientSecret": "tenant-a-client-secret"
+    }
+  ]
+}
+
+// Tenant B
+{
+  "thirdPartyId": "google",
+  "clients": [
+    {
+      "clientId": "tenant-b-client-id",
+      "clientSecret": "tenant-b-client-secret"
+    }
+  ]
+}
+```
+
+**Pros**: Better branding, tenant isolation
+
+**Cons**: More OAuth apps to manage
+
+## Security Considerations
+
+<Warning>
+  **Store Client Secrets Securely**
+  
+  Client secrets are sensitive credentials. Ensure they are:
+  - Never committed to version control
+  - Stored in environment variables or secrets management systems
+  - Rotated periodically
+  - Restricted to authorized personnel only
+</Warning>
+
+### Best Practices
+
+1. **Use HTTPS Only**: Always configure OAuth redirect URLs with HTTPS
+2. **Validate Redirect URIs**: Restrict OAuth redirect URIs to known domains
+3. **Minimal Scopes**: Request only the OAuth scopes you need
+4. **Monitor Usage**: Track which providers are being used and by whom
+5. **Regular Audits**: Periodically review and update provider configurations
+
+## Common Provider Issues
+
+### Issue: Provider Not Found
+
+**Cause**: The provider is not configured for the tenant
+
+**Solution**: Verify the provider is added to the tenant's `thirdPartyProviders` array
+
+### Issue: Invalid Client Credentials
+
+**Cause**: Incorrect `clientId` or `clientSecret`
+
+**Solution**: Verify credentials match those in the provider's developer console
+
+### Issue: Scope Errors
+
+**Cause**: Missing required scopes
+
+**Solution**: Ensure all required scopes for the provider are included
+
+### Issue: Permission Denied
+
+**Cause**: `thirdPartyEnabled` is set to `false` for the tenant
+
+**Solution**: Enable third-party login in the tenant configuration
+
+## Related APIs
+
+<CardGroup cols={2}>
+  <Card title="Sign In/Up" icon="right-to-bracket" href="/api/thirdparty/signin-up">
+    Authenticate users with configured providers
+  </Card>
+  <Card title="Tenant Management" icon="building" href="/api/multitenancy/tenants">
+    Manage tenant configurations
+  </Card>
+</CardGroup>
+
+## Source Code Reference
+
+Tenant validation: `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/thirdparty/Utils.java:28`

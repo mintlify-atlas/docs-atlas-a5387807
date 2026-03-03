@@ -1,80 +1,231 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get SuperTokens Core running in 5 minutes
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
+Get SuperTokens Core up and running on your local machine in just a few minutes.
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Run with Docker">
+    The fastest way to start SuperTokens Core is with Docker:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    docker run -p 3567:3567 -d supertokens/supertokens-postgresql
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    This starts SuperTokens Core with an in-memory PostgreSQL database on port 3567.
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    <Note>
+    For production, you should use an external database. See [Database setup](/deployment/database-setup) for details.
+    </Note>
+  </Step>
+  
+  <Step title="Verify it's running">
+    Test that SuperTokens Core is responding by checking the health endpoint:
+    
+    ```bash
+    curl http://localhost:3567/hello
+    ```
+    
+    You should see:
+    ```json
+    {
+      "status": "OK"
+    }
+    ```
+  </Step>
+  
+  <Step title="Create your first session">
+    Let's create a test session to verify the authentication flow works:
+    
+    ```bash
+    curl -X POST http://localhost:3567/recipe/session \
+      -H "Content-Type: application/json" \
+      -d '{
+        "userId": "test-user-123",
+        "userDataInJWT": {},
+        "userDataInDatabase": {},
+        "enableAntiCsrf": false
+      }'
+    ```
+    
+    You should receive a response with session tokens:
+    ```json
+    {
+      "status": "OK",
+      "session": {
+        "handle": "...",
+        "userId": "test-user-123",
+        "userDataInJWT": {}
+      },
+      "accessToken": {
+        "token": "...",
+        "expiry": 1234567890,
+        "createdTime": 1234567890
+      },
+      "refreshToken": {
+        "token": "...",
+        "expiry": 1234567890,
+        "createdTime": 1234567890
+      },
+      "antiCsrfToken": null
+    }
+    ```
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## What's next?
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Now that SuperTokens Core is running, you can:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Explore authentication methods" icon="key" href="/auth/email-password">
+    Learn about email/password, passwordless, social login, and more
+  </Card>
+  <Card title="Understand sessions" icon="shield" href="/concepts/sessions">
+    Deep dive into how session management works
+  </Card>
+  <Card title="Configure SuperTokens" icon="gear" href="/configuration">
+    Customize settings for your use case
+  </Card>
+  <Card title="Browse API reference" icon="code" href="/api/core/overview">
+    Explore all available endpoints
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Running with different databases
+
+### PostgreSQL
+
+```bash
+docker run \
+  -p 3567:3567 \
+  -e POSTGRESQL_CONNECTION_URI="postgresql://username:password@host:5432/database" \
+  -d supertokens/supertokens-postgresql
+```
+
+### MySQL
+
+```bash
+docker run \
+  -p 3567:3567 \
+  -e MYSQL_CONNECTION_URI="mysql://username:password@host:3306/database" \
+  -d supertokens/supertokens-mysql
+```
+
+### MongoDB
+
+```bash
+docker run \
+  -p 3567:3567 \
+  -e MONGODB_CONNECTION_URI="mongodb://username:password@host:27017/database" \
+  -d supertokens/supertokens-mongodb
+```
+
+## Using with Backend SDKs
+
+SuperTokens Core is designed to work with Backend SDKs. Here's a quick example with Node.js:
+
+### Install the Backend SDK
+
+<CodeGroup>
+```bash npm
+npm install supertokens-node
+```
+
+```bash yarn
+yarn add supertokens-node
+```
+
+```bash pnpm
+pnpm add supertokens-node
+```
+</CodeGroup>
+
+### Initialize the SDK
+
+```typescript
+import supertokens from "supertokens-node";
+import Session from "supertokens-node/recipe/session";
+import EmailPassword from "supertokens-node/recipe/emailpassword";
+
+supertokens.init({
+  framework: "express",
+  supertokens: {
+    // This is the connection URI for SuperTokens Core
+    connectionURI: "http://localhost:3567",
+    apiKey: "optional-api-key"
+  },
+  appInfo: {
+    appName: "My App",
+    apiDomain: "http://localhost:3001",
+    websiteDomain: "http://localhost:3000"
+  },
+  recipeList: [
+    EmailPassword.init(),
+    Session.init()
+  ]
+});
+```
+
+<Tip>
+For complete integration examples with different Backend SDKs (Python, Go, etc.), see the [SuperTokens documentation](https://supertokens.io/docs/guides).
+</Tip>
+
+## Production deployment
+
+For production use, you'll want to:
+
+1. **Use an external database**: Don't rely on in-memory storage
+2. **Configure API keys**: Secure the connection between your Backend SDK and Core
+3. **Set up proper networking**: Keep Core on a private network
+4. **Enable monitoring**: Configure logging and health checks
+
+See the [Self-hosting guide](/deployment/self-hosting) for detailed production deployment instructions.
+
+## Troubleshooting
+
+### Port already in use
+
+If port 3567 is already in use, you can change it:
+
+```bash
+docker run -p 8080:3567 -d supertokens/supertokens-postgresql
+```
+
+Then connect to `http://localhost:8080` instead.
+
+### Connection refused
+
+Make sure:
+- Docker is running
+- The container started successfully: `docker ps`
+- Check logs: `docker logs <container-id>`
+
+### Database connection errors
+
+If using an external database, verify:
+- The database server is accessible
+- Credentials are correct
+- The database exists and user has proper permissions
+
+See [Database setup troubleshooting](/deployment/database-setup#troubleshooting) for more help.
+
+## Learn more
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Understand how SuperTokens components work together
+  </Card>
+  <Card title="Docker deployment" icon="docker" href="/deployment/docker">
+    Full Docker and docker-compose setup guide
+  </Card>
+  <Card title="Configuration reference" icon="book" href="/configuration">
+    Complete list of all configuration options
+  </Card>
+  <Card title="Multi-tenancy" icon="sitemap" href="/concepts/multitenancy">
+    Set up multi-tenant applications
+  </Card>
+</CardGroup>

@@ -1,0 +1,436 @@
+---
+title: 'User Management'
+description: 'GET /users - List, search, and paginate through users'
+---
+
+## Overview
+
+The `/users` endpoint retrieves a paginated list of users with optional filtering by recipe, email, phone number, or third-party provider. This endpoint is tenant-specific and supports searching across multiple authentication methods.
+
+**Key Features:**
+- Pagination with customizable limits
+- Filter by authentication recipe (emailpassword, passwordless, thirdparty, etc.)
+- Search by email, phone number, or provider
+- Sort by join time (ascending or descending)
+- User ID mapping support
+- Multitenancy support
+
+## Endpoint
+
+```
+GET /users
+```
+
+**Base URL:** `http://localhost:3567`
+
+**Authentication:** Requires API key
+
+## Request
+
+### Headers
+
+<ParamField header="api-key" type="string" required>
+  Your SuperTokens API key
+</ParamField>
+
+<ParamField header="cdi-version" type="string">
+  CDI version (e.g., "5.4")
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="includeRecipeIds" type="string">
+  Comma-separated list of recipe IDs to include. Valid values: `emailpassword`, `passwordless`, `thirdparty`.
+  
+  Example: `emailpassword,thirdparty`
+</ParamField>
+
+<ParamField query="limit" type="integer" default="100">
+  Maximum number of users to return. Must be between 1 and 1000 (or 500 when searching).
+</ParamField>
+
+<ParamField query="paginationToken" type="string">
+  Base64-encoded token for pagination. Use the `nextPaginationToken` from the previous response.
+</ParamField>
+
+<ParamField query="timeJoinedOrder" type="string" default="ASC">
+  Sort order for users. Valid values: `ASC` or `DESC`.
+</ParamField>
+
+<ParamField query="email" type="string">
+  Search for users by email address. Supports multiple emails separated by semicolons.
+  
+  Example: `user@example.com;admin@example.com`
+</ParamField>
+
+<ParamField query="phone" type="string">
+  Search for users by phone number. Supports multiple phone numbers separated by semicolons.
+  
+  Example: `+1234567890;+0987654321`
+</ParamField>
+
+<ParamField query="provider" type="string">
+  Search for users by third-party provider. Supports multiple providers separated by semicolons.
+  
+  Example: `google;github`
+</ParamField>
+
+### Request Body
+
+None.
+
+## Response
+
+### Success Response
+
+**Status Code:** `200 OK`
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "status": "OK",
+  "users": [
+    {
+      "id": "user-id-1",
+      "timeJoined": 1234567890000,
+      "isPrimaryUser": true,
+      "emails": ["user@example.com"],
+      "phoneNumbers": ["+1234567890"],
+      "thirdParty": [],
+      "loginMethods": [
+        {
+          "recipeId": "emailpassword",
+          "recipeUserId": "recipe-user-id",
+          "timeJoined": 1234567890000,
+          "verified": true,
+          "email": "user@example.com"
+        }
+      ],
+      "tenantIds": ["public"]
+    }
+  ],
+  "nextPaginationToken": "eyJwYWdlIjoxfQ=="
+}
+```
+
+<ResponseField name="status" type="string" required>
+  Response status - always `"OK"` on success
+</ResponseField>
+
+<ResponseField name="users" type="array" required>
+  Array of user objects. For CDI versions < 4.0, returns a different format with recipe wrapper.
+</ResponseField>
+
+<ResponseField name="nextPaginationToken" type="string">
+  Token for fetching the next page of results. Omitted if there are no more users.
+</ResponseField>
+
+### User Object (CDI >= 4.0)
+
+<ResponseField name="id" type="string">
+  User's unique identifier (external ID if mapping exists)
+</ResponseField>
+
+<ResponseField name="timeJoined" type="number">
+  Unix timestamp in milliseconds when user joined
+</ResponseField>
+
+<ResponseField name="isPrimaryUser" type="boolean">
+  Whether this is a primary user account
+</ResponseField>
+
+<ResponseField name="emails" type="array">
+  Array of email addresses associated with the user
+</ResponseField>
+
+<ResponseField name="phoneNumbers" type="array">
+  Array of phone numbers associated with the user
+</ResponseField>
+
+<ResponseField name="thirdParty" type="array">
+  Array of third-party authentication providers
+</ResponseField>
+
+<ResponseField name="loginMethods" type="array">
+  Array of login methods (authentication recipes) for this user
+</ResponseField>
+
+<ResponseField name="tenantIds" type="array">
+  Array of tenant IDs the user belongs to (CDI >= 3.0)
+</ResponseField>
+
+### Error Response
+
+**Status Code:** `400 Bad Request`
+
+```json
+{
+  "message": "timeJoinedOrder can be either ASC OR DESC"
+}
+```
+
+**Common Error Messages:**
+- `"Unknown recipe ID: {recipeId}"` - Invalid recipe ID provided
+- `"max limit allowed is 1000"` - Limit exceeds maximum
+- `"limit must a positive integer with min value 1"` - Invalid limit value
+- `"invalid pagination token"` - Malformed or expired pagination token
+
+## Examples
+
+### Basic Usage
+
+```bash
+curl -X GET "http://localhost:3567/users?limit=10" \
+  -H "api-key: your_api_key_here"
+```
+
+### Filter by Recipe
+
+```bash
+curl -X GET "http://localhost:3567/users?includeRecipeIds=emailpassword,thirdparty" \
+  -H "api-key: your_api_key_here"
+```
+
+### Search by Email
+
+```bash
+curl -X GET "http://localhost:3567/users?email=user@example.com" \
+  -H "api-key: your_api_key_here"
+```
+
+### Multiple Email Search
+
+```bash
+curl -X GET "http://localhost:3567/users?email=user1@example.com;user2@example.com" \
+  -H "api-key: your_api_key_here"
+```
+
+### Search by Phone
+
+```bash
+curl -X GET "http://localhost:3567/users?phone=%2B1234567890" \
+  -H "api-key: your_api_key_here"
+```
+
+### Search by Provider
+
+```bash
+curl -X GET "http://localhost:3567/users?provider=google" \
+  -H "api-key: your_api_key_here"
+```
+
+### Pagination
+
+```bash
+# First page
+curl -X GET "http://localhost:3567/users?limit=100" \
+  -H "api-key: your_api_key_here"
+
+# Next page using token from response
+curl -X GET "http://localhost:3567/users?limit=100&paginationToken=eyJwYWdlIjoxfQ==" \
+  -H "api-key: your_api_key_here"
+```
+
+### Sort Descending
+
+```bash
+curl -X GET "http://localhost:3567/users?timeJoinedOrder=DESC" \
+  -H "api-key: your_api_key_here"
+```
+
+### JavaScript (Node.js)
+
+```javascript
+const response = await fetch('http://localhost:3567/users?limit=50', {
+  headers: {
+    'api-key': 'your_api_key_here',
+    'cdi-version': '5.4'
+  }
+});
+
+const data = await response.json();
+console.log(`Found ${data.users.length} users`);
+
+if (data.nextPaginationToken) {
+  console.log('More users available');
+}
+```
+
+### Python
+
+```python
+import requests
+
+response = requests.get(
+    'http://localhost:3567/users',
+    params={
+        'limit': 50,
+        'includeRecipeIds': 'emailpassword',
+        'timeJoinedOrder': 'DESC'
+    },
+    headers={
+        'api-key': 'your_api_key_here'
+    }
+)
+
+data = response.json()
+for user in data['users']:
+    print(f"User: {user['id']} - {user.get('emails', [])}")
+```
+
+### Paginate Through All Users
+
+```javascript
+async function getAllUsers() {
+  const allUsers = [];
+  let paginationToken = null;
+  
+  do {
+    const params = new URLSearchParams({ limit: '500' });
+    if (paginationToken) {
+      params.append('paginationToken', paginationToken);
+    }
+    
+    const response = await fetch(`http://localhost:3567/users?${params}`, {
+      headers: { 'api-key': 'your_api_key_here' }
+    });
+    
+    const data = await response.json();
+    allUsers.push(...data.users);
+    paginationToken = data.nextPaginationToken;
+  } while (paginationToken);
+  
+  return allUsers;
+}
+```
+
+## Implementation Details
+
+### Search Tag Normalization
+
+Email, phone, and provider search tags are normalized:
+- Converted to lowercase
+- Trimmed of whitespace
+- Empty tags are filtered out
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/UsersAPI.java:211-221`
+
+### Limit Restrictions
+
+When searching (email, phone, or provider filters), the maximum limit may be lower than the default 1000 to ensure reasonable response times.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/UsersAPI.java:158`
+
+### User ID Mapping
+
+If user ID mapping is enabled, the response will contain external user IDs instead of internal SuperTokens IDs.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/UsersAPI.java:173`
+
+### Version Compatibility
+
+The response format varies based on CDI version:
+- **< 3.0**: No `tenantIds` field
+- **< 4.0**: Users wrapped in `{recipeId, user}` objects
+- **>= 4.0**: Direct user objects with `loginMethods`
+- **>= 5.3**: Enhanced user metadata
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/UsersAPI.java:180-195`
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Get User by ID" icon="user" href="/api/core/users#get-user-by-id">
+    Retrieve a specific user by ID
+  </Card>
+  <Card title="User Count" icon="hashtag" href="/api/core/users#users-count">
+    Get total number of users
+  </Card>
+  <Card title="Search by Account Info" icon="magnifying-glass" href="/api/core/users#search-by-account-info">
+    Advanced user search by account information
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/core/overview">
+    Learn about pagination and error handling
+  </Card>
+</CardGroup>
+
+## Additional User Endpoints
+
+### Get User by ID
+
+```
+GET /user/id?userId={userId}
+```
+
+Retrieve a single user by their ID.
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "user": { /* user object */ }
+}
+```
+
+Or if user not found:
+```json
+{
+  "status": "UNKNOWN_USER_ID_ERROR"
+}
+```
+
+### Users Count
+
+```
+GET /users/count?includeRecipeIds={recipes}&includeAllTenants={boolean}
+```
+
+Get the total count of users, optionally filtered by recipe.
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "count": 1234
+}
+```
+
+### Search by Account Info
+
+```
+GET /users/by-accountinfo?email={email}&phoneNumber={phone}&thirdPartyId={id}&thirdPartyUserId={userId}&doUnionOfAccountInfo={boolean}
+```
+
+Search for users by specific account information with union or intersection logic.
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "users": [ /* array of user objects */ ]
+}
+```
+
+## Best Practices
+
+<Tip>
+  Use pagination tokens for large user bases instead of increasing the limit. This provides better performance and more reliable results.
+</Tip>
+
+<Warning>
+  Search parameters (email, phone, provider) are case-insensitive and normalized. Always provide them in a consistent format for predictable results.
+</Warning>
+
+**Performance Tips:**
+- Keep limits reasonable (100-500) for faster responses
+- Use recipe filters to narrow down results
+- Cache pagination tokens for consistent page navigation
+- Consider tenant-specific queries for multitenancy setups
+
+**Security Considerations:**
+- Always use API keys for authentication
+- Don't expose user lists publicly
+- Implement additional access controls in your application layer
+- Be mindful of user privacy when logging or displaying user data

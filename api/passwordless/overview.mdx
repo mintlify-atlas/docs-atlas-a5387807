@@ -1,0 +1,46 @@
+---
+title: 'Passwordless Authentication'
+description: 'API endpoints for passwordless authentication with email or phone'
+---
+
+## Overview
+
+The Passwordless API provides endpoints for implementing passwordless authentication using email or phone number. Users can sign in by receiving a one-time code via email or SMS.
+
+## Authentication Flow
+
+1. **Create Code**: Generate a passwordless login code for a user's email or phone number
+2. **Consume Code**: Verify the code and complete authentication
+3. **Resend Code**: Generate a new code for an existing authentication attempt
+
+## Key Concepts
+
+### Device ID
+
+A unique identifier for each authentication attempt. Used to track code verification attempts and prevent abuse.
+
+### Pre-Auth Session ID
+
+A hashed version of the device ID returned by the API. Used to identify the authentication session.
+
+### User Input Code
+
+The short code (typically 6 digits) that users enter to verify their identity.
+
+### Link Code
+
+A one-time use code that can be embedded in magic links for one-click authentication.
+
+## Endpoints
+
+<Card title="Create Code" icon="plus" href="/api/passwordless/create-code">
+  Generate a new passwordless authentication code
+</Card>
+
+<Card title="Consume Code" icon="check" href="/api/passwordless/consume-code">
+  Verify a code and complete authentication
+</Card>
+
+<Card title="Resend Code" icon="rotate" href="/api/passwordless/resend-code">
+  Generate a new code for an existing device
+</Card>

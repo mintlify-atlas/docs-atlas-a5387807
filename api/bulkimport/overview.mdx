@@ -1,0 +1,53 @@
+---
+title: Bulk Import API Overview
+description: Bulk user import API endpoints for migrating users to SuperTokens
+---
+
+The Bulk Import API provides endpoints for importing large numbers of users into SuperTokens. This is useful when migrating from another authentication system.
+
+## Key Features
+
+- Batch user import with validation
+- Support for multiple authentication methods (email/password, passwordless, social login)
+- Asynchronous processing for large imports
+- Status tracking and error reporting
+- User role and metadata import
+- Tenant assignment support
+
+## Import Process
+
+### Batch Import
+
+1. Prepare user data with required fields
+2. Submit batch via `/bulk-import/users` (up to 10,000 users per request)
+3. Users are queued with "NEW" status
+4. Background processing imports users asynchronously
+5. Monitor progress via status endpoints
+
+### Direct Import
+
+1. Prepare single user data
+2. Submit via `/bulk-import/import`
+3. User is imported synchronously
+4. Immediate success or error response
+
+## Base Path
+
+All Bulk Import endpoints are prefixed with `/bulk-import`
+
+## Limitations
+
+- Not supported with in-memory database
+- Maximum 10,000 users per batch request
+- All endpoints are app-specific
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Import" icon="upload" href="/api/bulkimport/import">
+    Add users for bulk import
+  </Card>
+  <Card title="Status" icon="chart-line" href="/api/bulkimport/status">
+    Check import status and progress
+  </Card>
+</CardGroup>

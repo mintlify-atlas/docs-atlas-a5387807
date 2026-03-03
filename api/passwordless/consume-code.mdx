@@ -1,0 +1,122 @@
+---
+title: 'Consume Passwordless Code'
+openapi: 'POST /recipe/signinup/code/consume'
+---
+
+## Overview
+
+Verifies a passwordless authentication code and completes the sign-in process. Creates a new user if one doesn't exist.
+
+## Request Body
+
+**Required:**
+- `preAuthSessionId` (string): The session identifier from code creation
+
+**One of the following:**
+- `linkCode` (string): The magic link code
+- `deviceId` + `userInputCode`: For manual code entry
+  - `deviceId` (string): The device identifier
+  - `userInputCode` (string): The code entered by the user
+
+## Response
+
+### Success Response (200)
+
+```json
+{
+  "status": "OK",
+  "createdNewUser": true,
+  "user": {
+    "id": "user-id",
+    "email": "user@example.com",
+    "phoneNumber": "+1234567890",
+    "timeJoined": 1234567890,
+    "tenantIds": ["public"]
+  },
+  "recipeUserId": "recipe-user-id",
+  "consumedDevice": {
+    "preAuthSessionId": "session-id",
+    "failedCodeInputAttemptCount": 0,
+    "email": "user@example.com"
+  }
+}
+```
+
+**Response Fields:**
+
+- `createdNewUser`: Whether a new user was created
+- `user`: The authenticated user object
+- `recipeUserId`: Recipe-specific user ID (CDI >= 4.0)
+- `consumedDevice`: Information about the device that was verified
+
+### Error Responses
+
+#### RESTART_FLOW_ERROR (200)
+
+The authentication flow must be restarted. This can happen if:
+- The device was used for too many failed attempts
+- The preAuthSessionId is invalid
+
+```json
+{
+  "status": "RESTART_FLOW_ERROR"
+}
+```
+
+#### EXPIRED_USER_INPUT_CODE_ERROR (200)
+
+The code has expired.
+
+```json
+{
+  "status": "EXPIRED_USER_INPUT_CODE_ERROR",
+  "failedCodeInputAttemptCount": 1,
+  "maximumCodeInputAttempts": 5
+}
+```
+
+#### INCORRECT_USER_INPUT_CODE_ERROR (200)
+
+The code is incorrect.
+
+```json
+{
+  "status": "INCORRECT_USER_INPUT_CODE_ERROR",
+  "failedCodeInputAttemptCount": 1,
+  "maximumCodeInputAttempts": 5
+}
+```
+
+## Examples
+
+### Consume with link code
+
+```bash
+curl -X POST https://your-api.com/recipe/signinup/code/consume \
+  -H "Content-Type: application/json" \
+  -d '{
+    "preAuthSessionId": "session-id",
+    "linkCode": "magic-link-code"
+  }'
+```
+
+### Consume with user input code
+
+```bash
+curl -X POST https://your-api.com/recipe/signinup/code/consume \
+  -H "Content-Type: application/json" \
+  -d '{
+    "preAuthSessionId": "session-id",
+    "deviceId": "device-id",
+    "userInputCode": "123456"
+  }'
+```
+
+## Notes
+
+- You must provide exactly one of: `linkCode` OR (`deviceId` + `userInputCode`)
+- Failed attempts are tracked per device
+- After maximum failed attempts, the flow must be restarted
+- Email verification status is set automatically (CDI >= 4.0)
+- The API automatically handles user ID mapping for external user IDs
+- Active user tracking is updated upon successful authentication

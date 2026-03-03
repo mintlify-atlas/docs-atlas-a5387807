@@ -1,0 +1,145 @@
+---
+title: Sign Up
+description: Create a new user with email and password
+---
+
+## Endpoint
+
+```
+POST /recipe/signup
+```
+
+Creates a new user account with the provided email and password.
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  The user's email address. Will be normalized (lowercased and trimmed) before storage.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password. Cannot be an empty string.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  The status of the request. Either `OK` or `EMAIL_ALREADY_EXISTS_ERROR`.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The created user object. Only present when status is `OK`.
+  
+  <Expandable title="User object properties">
+    <ResponseField name="id" type="string">
+      The user's unique identifier (SuperTokens user ID or external user ID if mapped)
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      The user's email address (normalized)
+    </ResponseField>
+    
+    <ResponseField name="timeJoined" type="number">
+      Timestamp (in milliseconds) when the user was created
+    </ResponseField>
+    
+    <ResponseField name="tenantIds" type="string[]">
+      List of tenant IDs the user belongs to. Only present in CDI >= 3.0
+    </ResponseField>
+    
+    <ResponseField name="loginMethods" type="object[]">
+      Array of login methods associated with the user. Only present in CDI >= 4.0 with account linking enabled.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="recipeUserId" type="string">
+  The recipe-specific user ID. Only present in CDI >= 4.0.
+</ResponseField>
+
+## Response Examples
+
+<ResponseExample>
+```json Success
+{
+  "status": "OK",
+  "user": {
+    "id": "fa7a0841-b533-4478-95533-0fde890c3d37",
+    "email": "user@example.com",
+    "timeJoined": 1234567890123,
+    "tenantIds": ["public"]
+  },
+  "recipeUserId": "fa7a0841-b533-4478-95533-0fde890c3d37"
+}
+```
+
+```json Email Already Exists
+{
+  "status": "EMAIL_ALREADY_EXISTS_ERROR"
+}
+```
+</ResponseExample>
+
+## Implementation Details
+
+### Email Normalization
+
+The email address is normalized using `Utils.normaliseEmail()` before being stored. This ensures:
+- Consistent email format across the system
+- Case-insensitive email matching
+- Proper duplicate detection
+
+### Password Validation
+
+The API validates that:
+- Password is not an empty string
+- Additional password strength requirements should be enforced at the application level
+
+### Active User Tracking
+
+Successful sign-up automatically updates the user's last active timestamp using `ActiveUsers.updateLastActive()`. This is used for:
+- Usage analytics
+- License compliance
+- User activity monitoring
+
+### Multi-tenancy
+
+This endpoint is tenant-specific:
+- The tenant identifier is extracted from the request
+- The API verifies that Email Password is enabled for the tenant
+- User data is stored in the tenant's storage
+
+### User ID Mapping
+
+The external user ID is set to `null` in the response by default. If you have user ID mapping configured, the mapping will be applied when retrieving the user in subsequent requests.
+
+## Error Cases
+
+### EMAIL_ALREADY_EXISTS_ERROR
+
+Returned when a user with the provided email already exists in the tenant.
+
+```json
+{
+  "status": "EMAIL_ALREADY_EXISTS_ERROR"
+}
+```
+
+### Bad Request (400)
+
+Returned when:
+- Password is an empty string
+- Required fields are missing
+- Invalid JSON in request body
+
+### Internal Server Error (500)
+
+Returned when:
+- Database query fails
+- Tenant or app not found
+- Permission errors
+- Other internal errors
+
+## Code Reference
+
+Implementation: [SignUpAPI.java:56](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/webserver/api/emailpassword/SignUpAPI.java#L56)

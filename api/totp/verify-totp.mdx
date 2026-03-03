@@ -1,0 +1,153 @@
+---
+title: Verify TOTP Code
+description: Verify a TOTP code for user authentication
+---
+
+## Endpoint
+
+```
+POST /recipe/totp/verify
+```
+
+This is a tenant-specific API that verifies a TOTP code for authentication. This endpoint is used after a device has been verified, typically during login to implement multi-factor authentication.
+
+## Request Body
+
+<ParamField body="userId" type="string" required>
+  The ID of the user attempting to authenticate. Cannot be empty.
+</ParamField>
+
+<ParamField body="totp" type="string" required>
+  The TOTP code provided by the user from their authenticator app.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/totp/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "totp": "123456"
+  }'
+```
+
+## Response
+
+### Success Response
+
+<ResponseField name="status" type="string">
+  Returns `"OK"` when the TOTP code is valid
+</ResponseField>
+
+```json
+{
+  "status": "OK"
+}
+```
+
+### Error Responses
+
+#### Unknown User ID
+
+<ResponseField name="status" type="string">
+  Returns `"UNKNOWN_USER_ID_ERROR"` when the user has no verified TOTP devices
+</ResponseField>
+
+```json
+{
+  "status": "UNKNOWN_USER_ID_ERROR"
+}
+```
+
+#### Invalid TOTP Code
+
+<ResponseField name="status" type="string">
+  Returns `"INVALID_TOTP_ERROR"` when the provided code is incorrect
+</ResponseField>
+
+<ResponseField name="currentNumberOfFailedAttempts" type="number">
+  The number of failed attempts so far (available in v5.0+)
+</ResponseField>
+
+<ResponseField name="maxNumberOfFailedAttempts" type="number">
+  The maximum number of failed attempts allowed (available in v5.0+)
+</ResponseField>
+
+```json
+{
+  "status": "INVALID_TOTP_ERROR",
+  "currentNumberOfFailedAttempts": 3,
+  "maxNumberOfFailedAttempts": 5
+}
+```
+
+#### Rate Limit Reached
+
+<ResponseField name="status" type="string">
+  Returns `"LIMIT_REACHED_ERROR"` when too many failed attempts have occurred
+</ResponseField>
+
+<ResponseField name="retryAfterMs" type="number">
+  The number of milliseconds to wait before retrying
+</ResponseField>
+
+<ResponseField name="currentNumberOfFailedAttempts" type="number">
+  The number of failed attempts (available in v5.0+)
+</ResponseField>
+
+<ResponseField name="maxNumberOfFailedAttempts" type="number">
+  The maximum allowed failed attempts (available in v5.0+)
+</ResponseField>
+
+```json
+{
+  "status": "LIMIT_REACHED_ERROR",
+  "retryAfterMs": 300000,
+  "currentNumberOfFailedAttempts": 5,
+  "maxNumberOfFailedAttempts": 5
+}
+```
+
+## Implementation Details
+
+**Source**: `/workspace/source/src/main/java/io/supertokens/webserver/api/totp/VerifyTotpAPI.java:26`
+
+- This endpoint checks the TOTP code against **all verified devices** for the user
+- If the code matches any verified device, authentication succeeds
+- Failed attempts are tracked per user to prevent brute force attacks
+- Rate limiting is enforced after reaching the maximum number of failed attempts
+- The code is checked using the device's configured `skew` and `period` parameters
+
+## Typical MFA Flow
+
+1. User completes primary authentication (e.g., email/password)
+2. Application prompts for TOTP code
+3. User opens authenticator app and enters the current code
+4. Application calls this endpoint to verify the code
+5. If successful (`status: "OK"`), user is fully authenticated
+6. If failed, show error and allow retry (respecting rate limits)
+
+## Security Considerations
+
+- Always implement rate limiting on the client side based on the response
+- Display `retryAfterMs` to users when rate limited
+- Track failed attempts and warn users before reaching the limit
+- Consider implementing account lockout after multiple failed MFA attempts
+
+## Error Handling
+
+<ResponseField name="error" type="BadRequestException">
+  Returned when `userId` is empty
+</ResponseField>
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Create TOTP Device" href="/api/totp/create-device">
+    Register a new authenticator device
+  </Card>
+  <Card title="Verify Device" href="/api/totp/verify-device">
+    Verify a newly created device
+  </Card>
+</CardGroup>

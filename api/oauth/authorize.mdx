@@ -1,0 +1,110 @@
+---
+title: Authorization Endpoint
+description: OAuth 2.0 authorization endpoint
+---
+
+## POST /recipe/oauth/auth
+
+Initiates the OAuth 2.0 authorization flow. This endpoint handles authorization requests and returns redirect URLs with authorization codes or tokens (depending on the flow).
+
+## Request Body
+
+```json
+{
+  "params": {
+    "client_id": "string",
+    "redirect_uri": "string",
+    "response_type": "code | token",
+    "scope": "string",
+    "state": "string"
+  },
+  "cookies": "string (optional)",
+  "iss": "string (optional)",
+  "access_token": {
+    // Custom claims for access token (optional)
+  },
+  "id_token": {
+    // Custom claims for ID token (optional)
+  },
+  "useStaticSigningKey": "boolean (optional)"
+}
+```
+
+### Parameters
+
+- **params** (object, required): OAuth authorization parameters
+  - **client_id** (string, required): The OAuth client ID
+  - **redirect_uri** (string, required): Callback URL after authorization
+  - **response_type** (string, required): Either "code" for authorization code flow or "token" for implicit flow
+  - **scope** (string, optional): Requested OAuth scopes
+  - **state** (string, optional): Opaque value to maintain state between request and callback
+
+- **cookies** (string, optional): Cookie header for session validation
+
+- **iss** (string, optional): Token issuer URL for customizing token claims
+
+- **access_token** (object, optional): Additional claims to include in the access token (used for implicit flow)
+
+- **id_token** (object, optional): Additional claims to include in the ID token (used for implicit flow)
+
+- **useStaticSigningKey** (boolean, optional): Whether to use static signing key. Defaults to `true`. Set to `false` to use dynamic keys
+
+## Response
+
+### Success Response
+
+```json
+{
+  "status": "OK",
+  "redirectTo": "string",
+  "cookies": ["string"]
+}
+```
+
+- **redirectTo** (string): The URL to redirect the user to. May contain authorization code or tokens in the URL
+- **cookies** (array): Set-Cookie headers to be sent to the client
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/oauth/OAuthAuthAPI.java:52`
+- Recipe: `OAUTH`
+- The endpoint proxies requests to the underlying OAuth provider (Hydra)
+- For implicit flow, tokens are transformed and embedded in the redirect URL fragment
+- When access tokens contain a `sessionHandle`, the user's last active time is updated
+- OAuth sessions are created with client ID, grant ID (gid), JWT ID (jti), and expiry
+
+## Example Usage
+
+### Authorization Code Flow
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/oauth/auth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "params": {
+      "client_id": "stcl_abc123",
+      "redirect_uri": "https://your-app.com/callback",
+      "response_type": "code",
+      "scope": "openid profile email",
+      "state": "random_state_string"
+    }
+  }'
+```
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "redirectTo": "https://your-app.com/callback?code=auth_code_here&state=random_state_string",
+  "cookies": ["oauth_cookie=value; Path=/; HttpOnly"]
+}
+```
+
+## Error Responses
+
+Errors are returned as exceptions that should be caught and handled appropriately:
+
+- **OAuthClientNotFoundException**: The specified client_id does not exist
+- **TenantOrAppNotFoundException**: Invalid tenant or app context
+- **BadPermissionException**: Authorization not allowed for this context

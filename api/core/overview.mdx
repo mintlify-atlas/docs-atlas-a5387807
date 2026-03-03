@@ -1,0 +1,156 @@
+---
+title: 'Core API Overview'
+description: 'SuperTokens Core API reference - authentication, endpoints, and error handling'
+---
+
+## Introduction
+
+The SuperTokens Core API provides HTTP endpoints for managing authentication, users, and configuration. These are low-level APIs that power the SuperTokens authentication system.
+
+## Base URL
+
+The default base URL for SuperTokens Core is:
+
+```
+http://localhost:3567
+```
+
+You can configure the port in your `config.yaml` file:
+
+```yaml
+# Default: 3567
+port: 3567
+```
+
+## API Versioning
+
+The Core API uses CDI (Core Driver Interface) versioning via the `cdi-version` header. The API supports multiple versions for backward compatibility.
+
+**Supported CDI Versions:**
+- v5.4 (latest)
+- v5.3, v5.2, v5.1, v5.0
+- v4.0
+- v3.1, v3.0
+- v2.x series (v2.7 through v2.21)
+
+Include the version in your request headers:
+
+```bash
+cdi-version: 5.4
+```
+
+**Note:** Some endpoints like `/hello` and `/.well-known/jwks.json` do not require version headers.
+
+## Authentication
+
+Most Core API endpoints require authentication using an API key. Configure API keys in your `config.yaml`:
+
+```yaml
+api_keys: your_api_key_here
+```
+
+Include the API key in the request header:
+
+```bash
+api-key: your_api_key_here
+```
+
+**Exceptions:** Health check endpoints (`/hello`, `/`) and public endpoints (`/.well-known/jwks.json`) do not require authentication.
+
+## Multitenancy
+
+SuperTokens Core supports multitenancy with app-specific and tenant-specific endpoints. You can route requests to specific tenants using URL patterns:
+
+- **Public tenant:** `http://localhost:3567/users`
+- **Specific tenant:** `http://localhost:3567/{tenantId}/users`
+- **Specific app:** `http://localhost:3567/appid-{appId}/users`
+- **App and tenant:** `http://localhost:3567/appid-{appId}/{tenantId}/users`
+
+## Error Handling
+
+The Core API returns standard HTTP status codes and JSON error responses.
+
+### HTTP Status Codes
+
+- **200 OK** - Request successful
+- **400 Bad Request** - Invalid parameters or malformed request
+- **401 Unauthorized** - Missing or invalid API key
+- **404 Not Found** - Endpoint or resource not found
+- **500 Internal Server Error** - Server error or storage exception
+
+### Error Response Format
+
+Error responses include a `status` field indicating the error type:
+
+```json
+{
+  "status": "UNKNOWN_USER_ID_ERROR"
+}
+```
+
+**Common Error Statuses:**
+- `BAD_REQUEST_ERROR` - Invalid request parameters
+- `UNKNOWN_USER_ID_ERROR` - User not found
+- `NOT_ALLOWED` - Operation not permitted
+- `GENERAL_ERROR` - Generic error (check logs)
+
+### ServletException Errors
+
+Internal errors (StorageQueryException, TenantOrAppNotFoundException, BadPermissionException) are thrown as ServletException with 500 status code.
+
+## Rate Limiting
+
+Some endpoints implement rate limiting to prevent abuse. The `/hello` endpoint uses a rate limiter with a default limit of 200 requests.
+
+When rate limited, the endpoint will still return `200 OK` but may return a different response in testing mode.
+
+## Request/Response Format
+
+All API endpoints use JSON for request and response bodies (except text-only endpoints like `/hello`).
+
+**Request Headers:**
+```bash
+Content-Type: application/json
+api-key: your_api_key_here
+cdi-version: 5.4
+```
+
+**Response Headers:**
+```bash
+Content-Type: application/json
+```
+
+## Pagination
+
+Endpoints that return lists of users support pagination using tokens:
+
+**Query Parameters:**
+- `paginationToken` - Base64 encoded token for the next page
+- `limit` - Maximum number of items per page (default: 100, max: 1000)
+- `timeJoinedOrder` - Sort order: `ASC` or `DESC` (default: `ASC`)
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "users": [...],
+  "nextPaginationToken": "encoded_token_here"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Health Check" icon="heart-pulse" href="/api/core/hello">
+    Test server connectivity with the `/hello` endpoint
+  </Card>
+  <Card title="User Management" icon="users" href="/api/core/users">
+    List, search, and manage users
+  </Card>
+  <Card title="Configuration" icon="gear" href="/api/core/config">
+    Retrieve server configuration
+  </Card>
+  <Card title="JWKS" icon="key" href="/api/core/jwks">
+    Get public keys for JWT verification
+  </Card>
+</CardGroup>

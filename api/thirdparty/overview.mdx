@@ -1,0 +1,82 @@
+---
+title: 'Third Party (Social Login) Overview'
+description: 'Social authentication APIs for signing in users with third-party providers'
+---
+
+## Overview
+
+The Third Party (Social Login) recipe provides APIs for authenticating users through external OAuth providers like Google, Facebook, GitHub, and other social login platforms.
+
+## Key Features
+
+- **Social Sign In/Up**: Single endpoint for both signing in existing users and signing up new users
+- **Provider Agnostic**: Works with any OAuth 2.0 or OpenID Connect provider
+- **Email Verification**: Supports automatic email verification based on provider trust
+- **Multi-tenancy**: Full support for tenant-specific social login configurations
+- **Account Linking**: Automatic linking of social accounts with existing users
+
+## Available Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Sign In/Up" icon="right-to-bracket" href="/api/thirdparty/signin-up">
+    Authenticate users with third-party providers
+  </Card>
+  <Card title="Provider Configuration" icon="gear" href="/api/thirdparty/providers">
+    Manage third-party provider settings
+  </Card>
+</CardGroup>
+
+## Common Use Cases
+
+### Social Login Flow
+
+1. User initiates login with a social provider (e.g., Google)
+2. Your application exchanges the authorization code for user info
+3. Call the `/recipe/signinup` endpoint with provider details
+4. SuperTokens creates or updates the user account
+5. Session is created for the authenticated user
+
+### Provider Configuration
+
+Third-party providers can be configured at the tenant level, allowing different social login options for different tenants in a multi-tenant setup.
+
+## Authentication
+
+All Third Party APIs require an API key for authentication. Include the API key in the request headers:
+
+```bash
+api-key: your-api-key
+```
+
+## Multi-tenancy Support
+
+The Third Party recipe is tenant-aware. You can:
+
+- Configure different social providers per tenant
+- Enable/disable social login for specific tenants
+- Maintain separate user pools per tenant
+
+## Error Handling
+
+Common error responses:
+
+- `EMAIL_CHANGE_NOT_ALLOWED_ERROR`: User's email cannot be changed due to account linking constraints
+- `UNKNOWN_USER_ID_ERROR`: The specified user ID was not found
+- `UNKNOWN_THIRD_PARTY_USER_ERROR`: No user found with the given third-party credentials
+
+## Related APIs
+
+- [Session Management](/api/session/overview) - Create and manage user sessions after authentication
+- [Email Verification](/api/emailverification/overview) - Verify user email addresses
+- [User Management](/api/users/get-by-id) - Manage authenticated users
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Sign In/Up Endpoint" icon="arrow-right" href="/api/thirdparty/signin-up">
+    Learn how to implement social login
+  </Card>
+  <Card title="Provider Configuration" icon="arrow-right" href="/api/thirdparty/providers">
+    Configure social login providers
+  </Card>
+</CardGroup>

@@ -1,0 +1,112 @@
+---
+title: Dashboard Sessions
+description: Endpoints for managing dashboard user sessions
+---
+
+## Sign In
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/dashboard/signin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "strongPassword123"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "sessionId": "session-id-string"
+}
+```
+</ResponseExample>
+
+<ParamField path="email" type="string" required>
+  Dashboard user's email address (will be normalized)
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  Dashboard user's password
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_CREDENTIALS_ERROR", or "USER_SUSPENDED_ERROR"
+</ResponseField>
+
+<ResponseField name="sessionId" type="string">
+  Session identifier for authenticated dashboard user
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Additional message for USER_SUSPENDED_ERROR status
+</ResponseField>
+
+---
+
+## Verify Session
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/dashboard/session/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "session-id-string"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "email": "admin@example.com"
+}
+```
+</ResponseExample>
+
+<ParamField path="sessionId" type="string" required>
+  The session ID to verify
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_SESSION_ERROR", or "USER_SUSPENDED_ERROR"
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Email address of the authenticated dashboard user (returned for CDI version 3.0+)
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Additional message for USER_SUSPENDED_ERROR status
+</ResponseField>
+
+---
+
+## Revoke Session
+
+<RequestExample>
+```bash cURL
+curl -X DELETE "https://your-domain.com/recipe/dashboard/session?sessionId=session-id-string" \
+  -H "Content-Type: application/json"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK"
+}
+```
+</ResponseExample>
+
+<ParamField query="sessionId" type="string" required>
+  The session ID to revoke
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK"
+</ResponseField>

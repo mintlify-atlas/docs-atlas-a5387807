@@ -1,0 +1,274 @@
+---
+title: 'Configuration'
+description: 'GET /config - Retrieve SuperTokens Core configuration file path'
+---
+
+## Overview
+
+The `/config` endpoint returns the absolute path to the SuperTokens Core configuration file (`config.yaml`). This endpoint is restricted to requests from the same process and must be called from the base connection URI domain with the public app and tenant.
+
+**Key Features:**
+- Returns configuration file path
+- Process ID verification for security
+- Must be called from base tenant only
+- No API key required
+- Useful for debugging and configuration management
+
+## Endpoint
+
+```
+GET /config
+```
+
+**Base URL:** `http://localhost:3567`
+
+## Request
+
+### Headers
+
+No authentication required.
+
+### Query Parameters
+
+<ParamField query="pid" type="string" required>
+  The process ID of the SuperTokens Core process. Must match the current process ID for the request to succeed.
+</ParamField>
+
+### Request Body
+
+None.
+
+## Response
+
+### Success Response
+
+**Status Code:** `200 OK`
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "status": "OK",
+  "path": "/path/to/config.yaml"
+}
+```
+
+<ResponseField name="status" type="string" required>
+  Response status - `"OK"` on success
+</ResponseField>
+
+<ResponseField name="path" type="string" required>
+  Absolute path to the configuration file
+</ResponseField>
+
+### Not Allowed Response
+
+**Status Code:** `200 OK`
+
+**Body:**
+```json
+{
+  "status": "NOT_ALLOWED"
+}
+```
+
+Returned when the provided process ID does not match the current SuperTokens Core process ID.
+
+<ResponseField name="status" type="string" required>
+  Response status - `"NOT_ALLOWED"` when PID doesn't match
+</ResponseField>
+
+### Error Response
+
+**Status Code:** `500 Internal Server Error`
+
+Returned when:
+- The request is not from the base tenant (BadPermissionException)
+- The tenant or app is not found (TenantOrAppNotFoundException)
+- Required query parameter is missing
+
+**Common Errors:**
+```json
+{
+  "message": "you can call this only from the base connection uri domain, public app and tenant"
+}
+```
+
+## Examples
+
+### cURL
+
+```bash
+# Get the current process ID
+PID=$(pgrep -f supertokens)
+
+# Request configuration path
+curl "http://localhost:3567/config?pid=$PID"
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "path": "/usr/lib/supertokens/config.yaml"
+}
+```
+
+### Wrong Process ID
+
+```bash
+curl "http://localhost:3567/config?pid=12345"
+```
+
+**Response:**
+```json
+{
+  "status": "NOT_ALLOWED"
+}
+```
+
+### JavaScript (Node.js)
+
+```javascript
+const pid = process.pid; // Your application's PID won't match
+
+const response = await fetch(`http://localhost:3567/config?pid=${pid}`);
+const data = await response.json();
+
+if (data.status === 'OK') {
+  console.log('Config path:', data.path);
+} else {
+  console.log('Not allowed - PID mismatch');
+}
+```
+
+### Python
+
+```python
+import os
+import requests
+
+# This will not work unless called from the SuperTokens process
+pid = os.getpid()
+
+response = requests.get(
+    'http://localhost:3567/config',
+    params={'pid': pid}
+)
+
+data = response.json()
+print(f"Status: {data['status']}")
+```
+
+## Implementation Details
+
+### Process ID Verification
+
+The endpoint verifies that the provided `pid` parameter matches the current SuperTokens Core process ID using `ProcessHandle.current().pid()`.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java:67`
+
+### Configuration Path Resolution
+
+The path is determined by:
+1. Command-line argument (`--config-file` or `-c`)
+2. Installation path + `config.yaml` (default)
+
+The returned path is always converted to an absolute path.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java:68-72`
+
+### Tenant Restriction
+
+The endpoint enforces that it can only be called from the base tenant (public app and tenant). Requests from specific tenants or apps will fail with BadPermissionException.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/ConfigAPI.java:62-65`
+
+## Security Considerations
+
+<Warning>
+  This endpoint is designed to be called only by the SuperTokens Core process itself or tools running with the same process ID. It cannot be called remotely by other applications or services.
+</Warning>
+
+**Why PID Verification?**
+- Prevents external applications from discovering configuration paths
+- Ensures only the SuperTokens process can query its own configuration
+- Protects sensitive file system information
+
+**Why Base Tenant Only?**
+- Configuration is global, not tenant-specific
+- Prevents tenant isolation issues
+- Ensures consistent behavior across multitenancy setups
+
+## Use Cases
+
+### Configuration Management Tools
+
+```bash
+#!/bin/bash
+# Script to update configuration (run as SuperTokens user)
+ST_PID=$(pgrep -f "java.*supertokens")
+CONFIG_PATH=$(curl -s "http://localhost:3567/config?pid=$ST_PID" | jq -r '.path')
+
+if [ "$CONFIG_PATH" != "null" ]; then
+  echo "Configuration file: $CONFIG_PATH"
+  # Perform configuration operations
+fi
+```
+
+### Debugging and Diagnostics
+
+```javascript
+// Internal diagnostic tool
+const diagnostics = {
+  async getConfigPath() {
+    const pid = process.env.SUPERTOKENS_PID;
+    const res = await fetch(`http://localhost:3567/config?pid=${pid}`);
+    const data = await res.json();
+    return data.status === 'OK' ? data.path : null;
+  }
+};
+```
+
+## Error Handling
+
+### Missing PID Parameter
+
+```bash
+curl "http://localhost:3567/config"
+# Returns 400 Bad Request
+```
+
+### Non-Base Tenant Request
+
+```bash
+curl "http://localhost:3567/tenant1/config?pid=1234"
+# Returns 500 with BadPermissionException
+```
+
+### Invalid App ID
+
+```bash
+curl "http://localhost:3567/appid-invalid/config?pid=1234"
+# Returns 500 with TenantOrAppNotFoundException
+```
+
+## Notes
+
+- The endpoint does not require an API key
+- API version header is not required
+- The PID check ensures this is primarily for internal/debugging use
+- The returned path is always absolute, regardless of how SuperTokens was started
+- This endpoint is useful for automated configuration management in containerized environments
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Health Check" icon="heart-pulse" href="/api/core/hello">
+    Check if SuperTokens is running
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/core/overview">
+    Learn about API authentication and structure
+  </Card>
+</CardGroup>

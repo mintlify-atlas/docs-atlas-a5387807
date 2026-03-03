@@ -1,0 +1,488 @@
+---
+title: Configuration
+description: Configure SuperTokens Core with config.yaml and environment variables
+---
+
+# Configuration
+
+SuperTokens Core is configured using a `config.yaml` file and environment variables. This page documents all available configuration options.
+
+## Configuration file location
+
+The default configuration file is located at:
+
+<CodeGroup>
+```bash Docker
+/usr/lib/supertokens/config.yaml
+```
+
+```bash Binary installation
+<installation-directory>/config.yaml
+```
+</CodeGroup>
+
+You can override the location using the `--with-config` flag:
+```bash
+./supertokens start --with-config=/path/to/config.yaml
+```
+
+## Core configuration
+
+### Service settings
+
+<ParamField path="port" type="integer" default="3567">
+  The port on which SuperTokens Core runs
+  
+  ```yaml
+  port: 3567
+  ```
+</ParamField>
+
+<ParamField path="host" type="string" default="localhost">
+  The host on which SuperTokens Core runs. Can be `localhost`, a domain name, `0.0.0.0`, or an IP address
+  
+  ```yaml
+  host: 0.0.0.0
+  ```
+</ParamField>
+
+<ParamField path="base_path" type="string" default="">
+  Base path to prepend to all API endpoints
+  
+  ```yaml
+  base_path: /auth
+  ```
+  
+  With this config, endpoints become `/auth/recipe/signup` instead of `/recipe/signup`
+</ParamField>
+
+<ParamField path="max_server_pool_size" type="integer" default="10">
+  Maximum thread pool size for incoming HTTP requests
+  
+  ```yaml
+  max_server_pool_size: 20
+  ```
+</ParamField>
+
+### Logging
+
+<ParamField path="info_log_path" type="string" default="{installation}/logs/info.log">
+  Path for INFO level logs. Set to `"null"` to log to standard output
+  
+  ```yaml
+  info_log_path: /var/log/supertokens/info.log
+  ```
+</ParamField>
+
+<ParamField path="error_log_path" type="string" default="{installation}/logs/error.log">
+  Path for ERROR level logs. Set to `"null"` to log to standard error
+  
+  ```yaml
+  error_log_path: /var/log/supertokens/error.log
+  ```
+</ParamField>
+
+<ParamField path="log_level" type="string" default="INFO">
+  Logging level. Options: `DEBUG`, `INFO`, `WARN`, `ERROR`, `NONE`
+  
+  ```yaml
+  log_level: DEBUG
+  ```
+</ParamField>
+
+## Authentication configuration
+
+### Access tokens
+
+<ParamField path="access_token_validity" type="integer" default="3600">
+  **DIFFERENT_ACROSS_APPS**: Time in seconds for access token validity
+  
+  ```yaml
+  access_token_validity: 7200  # 2 hours
+  ```
+</ParamField>
+
+<ParamField path="access_token_dynamic_signing_key_update_interval" type="integer" default="168">
+  **DIFFERENT_ACROSS_APPS**: Time in hours for signing key rotation
+  
+  ```yaml
+  access_token_dynamic_signing_key_update_interval: 24  # Daily rotation
+  ```
+  
+  <Note>Shorter intervals improve security but increase database queries for key management</Note>
+</ParamField>
+
+### Refresh tokens
+
+<ParamField path="refresh_token_validity" type="number" default="144000">
+  **DIFFERENT_ACROSS_APPS**: Time in minutes for refresh token validity
+  
+  ```yaml
+  refresh_token_validity: 43200  # 30 days
+  ```
+</ParamField>
+
+### API keys
+
+<ParamField path="api_keys" type="string" default="(none)">
+  **DIFFERENT_ACROSS_APPS**: Comma-separated API keys for authenticating Backend SDK requests
+  
+  ```yaml
+  api_keys: key1-min-20-chars-long,key2-min-20-chars-long
+  ```
+  
+  <Warning>Keys must be at least 20 characters and contain only alphanumeric characters, `=`, and `-`</Warning>
+</ParamField>
+
+## Password authentication
+
+### Password hashing
+
+<ParamField path="password_hashing_alg" type="string" default="BCRYPT">
+  **DIFFERENT_ACROSS_APPS**: Password hashing algorithm. Options: `BCRYPT`, `ARGON2`
+  
+  ```yaml
+  password_hashing_alg: ARGON2
+  ```
+  
+  <Tip>Argon2 is more secure but uses more CPU. Choose based on your threat model and server capacity</Tip>
+</ParamField>
+
+### BCrypt settings
+
+<ParamField path="bcrypt_log_rounds" type="integer" default="11">
+  Number of rounds for BCrypt hashing. Higher values are more secure but slower
+  
+  ```yaml
+  bcrypt_log_rounds: 12
+  ```
+</ParamField>
+
+### Argon2 settings
+
+<ParamField path="argon2_iterations" type="integer" default="1">
+  Number of iterations for Argon2 hashing
+  
+  ```yaml
+  argon2_iterations: 2
+  ```
+</ParamField>
+
+<ParamField path="argon2_memory_kb" type="integer" default="87795">
+  Memory usage in KB for Argon2 (default: 85 MB)
+  
+  ```yaml
+  argon2_memory_kb: 131072  # 128 MB
+  ```
+</ParamField>
+
+<ParamField path="argon2_parallelism" type="integer" default="2">
+  Parallelism factor for Argon2
+  
+  ```yaml
+  argon2_parallelism: 4
+  ```
+</ParamField>
+
+<ParamField path="argon2_hashing_pool_size" type="integer" default="1">
+  Number of concurrent Argon2 hash operations allowed
+  
+  ```yaml
+  argon2_hashing_pool_size: 2
+  ```
+</ParamField>
+
+### Password reset
+
+<ParamField path="password_reset_token_lifetime" type="integer" default="3600000">
+  **DIFFERENT_ACROSS_TENANTS**: Password reset token lifetime in milliseconds
+  
+  ```yaml
+  password_reset_token_lifetime: 1800000  # 30 minutes
+  ```
+</ParamField>
+
+## Passwordless authentication
+
+<ParamField path="passwordless_code_lifetime" type="integer" default="900000">
+  **DIFFERENT_ACROSS_TENANTS**: Passwordless code validity in milliseconds
+  
+  ```yaml
+  passwordless_code_lifetime: 600000  # 10 minutes
+  ```
+</ParamField>
+
+<ParamField path="passwordless_max_code_input_attempts" type="integer" default="5">
+  **DIFFERENT_ACROSS_TENANTS**: Maximum code input attempts before requiring restart
+  
+  ```yaml
+  passwordless_max_code_input_attempts: 3
+  ```
+</ParamField>
+
+## TOTP (MFA)
+
+<ParamField path="totp_max_attempts" type="integer" default="5">
+  **DIFFERENT_ACROSS_TENANTS**: Maximum invalid TOTP attempts before rate limiting
+  
+  ```yaml
+  totp_max_attempts: 3
+  ```
+</ParamField>
+
+<ParamField path="totp_rate_limit_cooldown_sec" type="integer" default="900">
+  **DIFFERENT_ACROSS_TENANTS**: Rate limit duration in seconds after max attempts reached
+  
+  ```yaml
+  totp_rate_limit_cooldown_sec: 1800  # 30 minutes
+  ```
+</ParamField>
+
+## Email verification
+
+<ParamField path="email_verification_token_lifetime" type="integer" default="86400000">
+  **DIFFERENT_ACROSS_TENANTS**: Email verification token lifetime in milliseconds
+  
+  ```yaml
+  email_verification_token_lifetime: 259200000  # 3 days
+  ```
+</ParamField>
+
+## IP filtering
+
+<ParamField path="ip_allow_regex" type="string" default="null">
+  **DIFFERENT_ACROSS_TENANTS**: Regex pattern for allowed IP addresses
+  
+  ```yaml
+  # Allow only localhost
+  ip_allow_regex: 127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1
+  ```
+</ParamField>
+
+<ParamField path="ip_deny_regex" type="string" default="null">
+  **DIFFERENT_ACROSS_TENANTS**: Regex pattern for denied IP addresses
+  
+  ```yaml
+  # Deny specific IP range
+  ip_deny_regex: 192\.168\.1\..*
+  ```
+</ParamField>
+
+## OAuth configuration
+
+<ParamField path="oauth_client_secret_encryption_key" type="string" default="null">
+  Encryption key for OAuth client secrets stored in database
+  
+  ```yaml
+  oauth_client_secret_encryption_key: your-32-char-encryption-key-here
+  ```
+  
+  <Warning>Required if you're using OAuth provider features. Must be exactly 32 characters</Warning>
+</ParamField>
+
+<ParamField path="oauth_provider_public_service_url" type="string" default="null">
+  URL for OAuth provider public service
+  
+  ```yaml
+  oauth_provider_public_service_url: https://oauth.example.com
+  ```
+</ParamField>
+
+<ParamField path="oauth_provider_admin_service_url" type="string" default="null">
+  URL for OAuth provider admin service
+  
+  ```yaml
+  oauth_provider_admin_service_url: https://oauth-admin.example.com
+  ```
+</ParamField>
+
+## SAML configuration
+
+<ParamField path="saml_sp_entity_id" type="string" default="https://saml.supertokens.com">
+  Service provider entity ID for SAML
+  
+  ```yaml
+  saml_sp_entity_id: https://saml.myapp.com
+  ```
+</ParamField>
+
+<ParamField path="saml_claims_validity" type="integer" default="300000">
+  Duration in milliseconds for SAML claims validity
+  
+  ```yaml
+  saml_claims_validity: 600000  # 10 minutes
+  ```
+</ParamField>
+
+## Bulk import
+
+<ParamField path="bulk_migration_parallelism" type="integer" default="(CPU cores)">
+  **DIFFERENT_ACROSS_APPS**: Number of parallel threads for bulk user migration
+  
+  ```yaml
+  bulk_migration_parallelism: 4
+  ```
+</ParamField>
+
+<ParamField path="bulk_migration_batch_size" type="integer" default="8000">
+  **DIFFERENT_ACROSS_APPS**: Number of users to load per batch during migration
+  
+  ```yaml
+  bulk_migration_batch_size: 5000
+  ```
+</ParamField>
+
+## Monitoring
+
+<ParamField path="disable_telemetry" type="boolean" default="false">
+  **DIFFERENT_ACROSS_APPS**: Disable anonymous telemetry
+  
+  ```yaml
+  disable_telemetry: true
+  ```
+  
+  <Info>Learn more about telemetry: [SuperTokens Wiki](https://github.com/supertokens/supertokens-core/wiki/Telemetry)</Info>
+</ParamField>
+
+<ParamField path="otel_collector_connection_uri" type="string" default="null">
+  OpenTelemetry collector URL for distributed tracing
+  
+  ```yaml
+  otel_collector_connection_uri: http://localhost:4318
+  ```
+</ParamField>
+
+<ParamField path="deadlock_logger_enable" type="boolean" default="false">
+  Enable deadlock detection logging
+  
+  ```yaml
+  deadlock_logger_enable: true
+  ```
+</ParamField>
+
+## Environment variables
+
+Most configuration options can be set via environment variables using uppercase with underscores:
+
+```bash
+# Set port via environment variable
+PORT=8080
+
+# Set API keys
+API_KEYS=key1-min-20-chars-long,key2-min-20-chars-long
+
+# Set password hashing algorithm
+PASSWORD_HASHING_ALG=ARGON2
+```
+
+<Note>Environment variables take precedence over config.yaml settings</Note>
+
+## Configuration scopes
+
+Configuration parameters are marked with scope annotations:
+
+- **DIFFERENT_ACROSS_APPS**: Can be different for each app in multi-tenancy setup
+- **DIFFERENT_ACROSS_TENANTS**: Can be different for each tenant within an app
+- **(No annotation)**: Global configuration, same across all apps and tenants
+
+## Example configurations
+
+### Development
+
+```yaml config.yaml
+core_config_version: 0
+port: 3567
+host: localhost
+log_level: DEBUG
+disable_telemetry: true
+```
+
+### Production
+
+```yaml config.yaml
+core_config_version: 0
+
+# Service
+port: 3567
+host: 0.0.0.0
+max_server_pool_size: 20
+
+# Security
+api_keys: your-production-key-min-20-chars,your-backup-key-min-20-chars
+
+# Tokens
+access_token_validity: 3600  # 1 hour
+refresh_token_validity: 43200  # 30 days
+access_token_dynamic_signing_key_update_interval: 168  # 7 days
+
+# Password hashing
+password_hashing_alg: ARGON2
+argon2_iterations: 2
+argon2_memory_kb: 131072  # 128 MB
+argon2_parallelism: 4
+argon2_hashing_pool_size: 2
+
+# Logging
+log_level: INFO
+info_log_path: /var/log/supertokens/info.log
+error_log_path: /var/log/supertokens/error.log
+
+# Monitoring
+otel_collector_connection_uri: http://localhost:4318
+```
+
+### High security
+
+```yaml config.yaml
+core_config_version: 0
+
+# Strict token lifetimes
+access_token_validity: 900  # 15 minutes
+refresh_token_validity: 10080  # 7 days
+password_reset_token_lifetime: 900000  # 15 minutes
+
+# Strong password hashing
+password_hashing_alg: ARGON2
+argon2_iterations: 3
+argon2_memory_kb: 262144  # 256 MB
+argon2_parallelism: 4
+bcrypt_log_rounds: 13
+
+# MFA settings
+totp_max_attempts: 3
+totp_rate_limit_cooldown_sec: 1800  # 30 minutes
+
+# Passwordless security
+passwordless_max_code_input_attempts: 3
+passwordless_code_lifetime: 300000  # 5 minutes
+
+# IP filtering (adjust regex for your needs)
+ip_allow_regex: 10\.0\.\d+\.\d+
+```
+
+## Validation
+
+Validate your configuration by starting SuperTokens Core:
+
+```bash
+./supertokens start --with-config=/path/to/config.yaml
+```
+
+Check the logs for any configuration errors or warnings.
+
+## Related documentation
+
+<CardGroup cols={2}>
+  <Card title="Database setup" icon="database" href="/deployment/database-setup">
+    Configure your database connection
+  </Card>
+  <Card title="Docker deployment" icon="docker" href="/deployment/docker">
+    Use environment variables with Docker
+  </Card>
+  <Card title="Self-hosting" icon="server" href="/deployment/self-hosting">
+    Deploy SuperTokens Core to production
+  </Card>
+  <Card title="Security" icon="shield" href="/concepts/security">
+    Learn about security best practices
+  </Card>
+</CardGroup>

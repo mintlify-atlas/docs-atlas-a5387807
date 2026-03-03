@@ -1,0 +1,253 @@
+---
+title: 'Create Session'
+description: 'Create a new session for a user'
+---
+
+## Endpoint
+
+```
+POST /recipe/session
+```
+
+Creates a new session for a user after successful authentication. Returns access and refresh tokens along with session metadata.
+
+## Request Body
+
+<ParamField body="userId" type="string" required>
+  The user ID for whom to create the session. This can be either the primary user ID or recipe user ID depending on your authentication setup.
+</ParamField>
+
+<ParamField body="userDataInJWT" type="object" required>
+  Custom data to be included in the access token JWT payload. This data is accessible without database queries but increases token size.
+  
+  Example:
+  ```json
+  {
+    "role": "admin",
+    "permissions": ["read", "write"]
+  }
+  ```
+</ParamField>
+
+<ParamField body="userDataInDatabase" type="object" required>
+  Custom data to be stored in the database and associated with the session. This data is not included in tokens.
+  
+  Example:
+  ```json
+  {
+    "lastLoginIp": "192.168.1.1",
+    "deviceInfo": "Chrome on MacOS"
+  }
+  ```
+</ParamField>
+
+<ParamField body="enableAntiCsrf" type="boolean" required>
+  Whether to enable anti-CSRF token protection for this session. Set to `true` for browser-based applications.
+</ParamField>
+
+<ParamField body="useDynamicSigningKey" type="boolean">
+  Whether to use dynamic signing keys for the access token. Defaults to `true` for CDI version >= 2.21.
+  
+  - `true` - Uses rotating keys for enhanced security
+  - `false` - Uses static key for simplified verification
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Always returns `"OK"` on success.
+</ResponseField>
+
+<ResponseField name="session" type="object">
+  Session metadata
+  
+  <Expandable title="Session object">
+    <ResponseField name="handle" type="string">
+      Unique session identifier. Format: `<uuid>` or `<uuid>_<tenantId>` for non-default tenants.
+    </ResponseField>
+    
+    <ResponseField name="userId" type="string">
+      Primary user ID associated with the session.
+    </ResponseField>
+    
+    <ResponseField name="recipeUserId" type="string">
+      Recipe-specific user ID (CDI version >= 4.0).
+    </ResponseField>
+    
+    <ResponseField name="userDataInJWT" type="object">
+      The custom data included in the JWT payload.
+    </ResponseField>
+    
+    <ResponseField name="tenantId" type="string">
+      Tenant ID for the session (CDI version >= 3.0).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="accessToken" type="object">
+  Access token information
+  
+  <Expandable title="Token details">
+    <ResponseField name="token" type="string">
+      JWT access token to be sent with API requests.
+    </ResponseField>
+    
+    <ResponseField name="expiry" type="number">
+      Unix timestamp (milliseconds) when the token expires.
+    </ResponseField>
+    
+    <ResponseField name="createdTime" type="number">
+      Unix timestamp (milliseconds) when the token was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="refreshToken" type="object">
+  Refresh token information
+  
+  <Expandable title="Token details">
+    <ResponseField name="token" type="string">
+      Opaque refresh token used to obtain new access tokens.
+    </ResponseField>
+    
+    <ResponseField name="expiry" type="number">
+      Unix timestamp (milliseconds) when the token expires.
+    </ResponseField>
+    
+    <ResponseField name="createdTime" type="number">
+      Unix timestamp (milliseconds) when the token was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="idRefreshToken" type="object">
+  ID refresh token (deprecated in CDI >= 2.21)
+  
+  <Expandable title="Token details">
+    <ResponseField name="token" type="string">
+      Legacy refresh token identifier.
+    </ResponseField>
+    
+    <ResponseField name="expiry" type="number">
+      Unix timestamp (milliseconds) when the token expires.
+    </ResponseField>
+    
+    <ResponseField name="createdTime" type="number">
+      Unix timestamp (milliseconds) when the token was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="antiCsrfToken" type="string">
+  Anti-CSRF token to be included in subsequent requests (only if `enableAntiCsrf` is `true`).
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.com/recipe/session \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "userDataInJWT": {
+      "role": "admin",
+      "email": "user@example.com"
+    },
+    "userDataInDatabase": {
+      "lastLoginIp": "192.168.1.1",
+      "userAgent": "Mozilla/5.0..."
+    },
+    "enableAntiCsrf": true,
+    "useDynamicSigningKey": true
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "status": "OK",
+  "session": {
+    "handle": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "userId": "user123",
+    "recipeUserId": "user123",
+    "userDataInJWT": {
+      "role": "admin",
+      "email": "user@example.com"
+    },
+    "tenantId": "public"
+  },
+  "accessToken": {
+    "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiry": 1640000000000,
+    "createdTime": 1639996400000
+  },
+  "refreshToken": {
+    "token": "def456...",
+    "expiry": 1648000000000,
+    "createdTime": 1639996400000
+  },
+  "antiCsrfToken": "anti-csrf-token-value"
+}
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+Implemented in:
+- API Handler: `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/session/SessionAPI.java:73`
+- Session Logic: `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:131`
+
+### Session Creation Process
+
+1. **Generate Session Handle** - Creates a UUID and appends tenant ID if not default
+2. **Handle User ID Mapping** - Resolves external user ID to SuperTokens user ID if mapping exists
+3. **Resolve Primary User** - Determines primary user ID for linked accounts
+4. **Create Refresh Token** - Generates opaque refresh token with optional anti-CSRF
+5. **Create Access Token** - Generates JWT with user data and token hashes
+6. **Store in Database** - Persists session data with hashed refresh token
+7. **Update Active Users** - Records user activity timestamp
+
+### Token Expiry
+
+Default token lifetimes (configurable in core config):
+
+- **Access Token**: 1 hour (3600000 ms)
+- **Refresh Token**: 100 days (8640000000 ms)
+
+### Security Considerations
+
+<Warning>
+  **Access Token Payload Size**: Keep `userDataInJWT` minimal as it's included in every request. Large payloads increase bandwidth and may exceed size limits.
+</Warning>
+
+<Note>
+  **User ID Mapping**: If using external user ID mapping, provide the external user ID. The core will automatically resolve to the internal SuperTokens user ID.
+</Note>
+
+<Tip>
+  **Enable Anti-CSRF**: Always enable anti-CSRF protection for browser-based applications to prevent cross-site request forgery attacks.
+</Tip>
+
+## Error Responses
+
+<ResponseField name="status" type="string">
+  Error status code
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error description
+</ResponseField>
+
+### Common Errors
+
+- **400 Bad Request**: Invalid `userDataInJWT` payload that exceeds size limits or contains invalid data
+- **500 Internal Server Error**: Database connection issues or internal processing errors
+
+## CDI Version Compatibility
+
+- **CDI < 2.21**: Returns `idRefreshToken` in response
+- **CDI >= 2.21**: `idRefreshToken` removed, `useDynamicSigningKey` parameter available
+- **CDI >= 3.0**: `tenantId` included in session response
+- **CDI >= 4.0**: `recipeUserId` included in session response

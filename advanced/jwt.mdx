@@ -1,0 +1,611 @@
+---
+title: JWT Signing & JWKS
+description: Create custom JWTs with RS256 signing, key rotation, and JWKS endpoint for token verification
+---
+
+## Overview
+
+SuperTokens Core provides a complete JWT infrastructure with RSA key pair generation, automatic key rotation, JWKS endpoint, and utilities for creating and signing custom JWTs.
+
+## Features
+
+<CardGroup cols={3}>
+  <Card title="RS256 Signing" icon="signature">
+    RSA with SHA-256 for secure JWT signing
+  </Card>
+  <Card title="Key Rotation" icon="rotate">
+    Automatic key rotation with configurable intervals
+  </Card>
+  <Card title="JWKS Endpoint" icon="globe">
+    Standard JWKS endpoint for public key distribution
+  </Card>
+  <Card title="Custom Claims" icon="brackets-curly">
+    Add any custom claims to your JWTs
+  </Card>
+  <Card title="Dynamic & Static Keys" icon="key">
+    Choose between rotating or fixed keys
+  </Card>
+  <Card title="Multi-Tenant" icon="building">
+    Separate keys per app for tenant isolation
+  </Card>
+</CardGroup>
+
+## Creating JWTs
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/jwt/JWTSigningFunctions.java:84-112`:
+
+```java
+public static String createJWTToken(
+    AppIdentifier appIdentifier,
+    Main main,
+    String algorithm,              // "RS256"
+    JsonObject payload,            // Your custom claims
+    String jwksDomain,             // Issuer (optional)
+    long jwtValidityInSeconds,
+    boolean useDynamicKey
+) {
+    // Get signing key
+    JWTSigningKeyInfo keyToUse;
+    if (useDynamicKey) {
+        // Use rotating key
+        keyToUse = Utils.getJWTSigningKeyInfoFromKeyInfo(
+            SigningKeys.getInstance(appIdentifier, main)
+                .getLatestIssuedDynamicKey()
+        );
+    } else {
+        // Use static key (never rotates)
+        keyToUse = SigningKeys.getInstance(appIdentifier, main)
+            .getStaticKeyForAlgorithm(
+                JWTSigningKey.SupportedAlgorithms.RS256
+            );
+    }
+    
+    return createJWTToken(
+        supportedAlgorithm,
+        new HashMap<>(),  // Additional headers
+        payload,
+        jwksDomain,
+        System.currentTimeMillis() + (jwtValidityInSeconds * 1000),
+        System.currentTimeMillis(),
+        keyToUse
+    );
+}
+```
+
+### Example: Create Custom JWT
+
+```java
+// Prepare payload with custom claims
+JsonObject payload = new JsonObject();
+payload.addProperty("userId", "user-123");
+payload.addProperty("email", "user@example.com");
+payload.addProperty("role", "admin");
+payload.addProperty("plan", "premium");
+
+JsonObject metadata = new JsonObject();
+metadata.addProperty("departmentId", "dept-456");
+metadata.addProperty("teamId", "team-789");
+payload.add("metadata", metadata);
+
+// Create JWT valid for 1 hour
+String jwt = JWTSigningFunctions.createJWTToken(
+    appIdentifier,
+    main,
+    "RS256",
+    payload,
+    "https://api.example.com",  // Issuer
+    3600,                         // 1 hour validity
+    true                          // Use dynamic key (rotates)
+);
+
+System.out.println("JWT: " + jwt);
+```
+
+### JWT Structure
+
+The created JWT has three parts:
+
+**Header:**
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "s-2de612a5-a5ba-413e-9216-4c43e2e78c86"
+}
+```
+
+**Payload:**
+```json
+{
+  "userId": "user-123",
+  "email": "user@example.com",
+  "role": "admin",
+  "plan": "premium",
+  "metadata": {
+    "departmentId": "dept-456",
+    "teamId": "team-789"
+  },
+  "iss": "https://api.example.com",
+  "iat": 1735689600,
+  "exp": 1735693200
+}
+```
+
+**Signature:**
+```
+RSA-SHA256 signature using private key
+```
+
+<Note>
+  The `kid` (key ID) in the header is crucial for verification. It tells verifiers which public key to use from the JWKS endpoint.
+</Note>
+
+## JWT Creation with Custom Headers
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/jwt/JWTSigningFunctions.java:114-147`:
+
+```java
+public static String createJWTToken(
+    JWTSigningKey.SupportedAlgorithms algorithm,
+    Map<String, Object> headerClaims,     // Custom headers
+    JsonObject payload,
+    String jwksDomain,
+    long jwtExpiryInMs,
+    long jwtIssuedAtInMs,
+    JWTSigningKeyInfo keyToUse
+) {
+    // Get Auth0 algorithm instance
+    Algorithm signingAlgorithm = getAuth0Algorithm(algorithm, keyToUse);
+    
+    // Add standard headers
+    headerClaims.put("alg", algorithm.name().toUpperCase());
+    headerClaims.put("typ", "JWT");
+    headerClaims.put("kid", keyToUse.keyId);
+    
+    // Build JWT
+    JWTCreator.Builder builder = com.auth0.jwt.JWT.create()
+        .withKeyId(keyToUse.keyId)
+        .withHeader(headerClaims)
+        .withIssuedAt(new Date(jwtIssuedAtInMs))
+        .withExpiresAt(new Date(jwtExpiryInMs));
+    
+    // Add issuer if provided
+    if (jwksDomain != null) {
+        builder.withIssuer(jwksDomain);
+    }
+    
+    // Add payload
+    builder.withPayload(payload.toString());
+    
+    // Sign and return
+    return builder.sign(signingAlgorithm);
+}
+```
+
+### Example: JWT with Custom Headers
+
+```java
+// Custom headers
+Map<String, Object> headers = new HashMap<>();
+headers.put("version", "v2");
+headers.put("custom", "value");
+
+// Payload
+JsonObject payload = new JsonObject();
+payload.addProperty("userId", "user-123");
+payload.addProperty("scope", "read write admin");
+
+// Get signing key
+JWTSigningKeyInfo keyInfo = SigningKeys.getInstance(appIdentifier, main)
+    .getStaticKeyForAlgorithm(
+        JWTSigningKey.SupportedAlgorithms.RS256
+    );
+
+// Create JWT
+String jwt = JWTSigningFunctions.createJWTToken(
+    JWTSigningKey.SupportedAlgorithms.RS256,
+    headers,
+    payload,
+    "https://api.example.com",
+    System.currentTimeMillis() + 3600000,  // Expires in 1 hour
+    System.currentTimeMillis(),            // Issued now
+    keyInfo
+);
+```
+
+## Signing Keys
+
+### Key Types
+
+<Tabs>
+  <Tab title="Dynamic Keys">
+    **Rotating keys** for enhanced security:
+    
+    - Automatically rotate at configured intervals
+    - Used for access tokens by default
+    - Old keys remain valid during transition
+    - Better security through key rotation
+    
+    ```java
+    JWTSigningKeyInfo dynamicKey = 
+        SigningKeys.getInstance(appIdentifier, main)
+            .getLatestIssuedDynamicKey();
+    ```
+  </Tab>
+  
+  <Tab title="Static Keys">
+    **Fixed keys** that never rotate:
+    
+    - Never change (good for long-lived tokens)
+    - Simpler key management
+    - Consistent `kid` value
+    - Use for custom JWTs you want to persist
+    
+    ```java
+    JWTSigningKeyInfo staticKey = 
+        SigningKeys.getInstance(appIdentifier, main)
+            .getStaticKeyForAlgorithm(
+                JWTSigningKey.SupportedAlgorithms.RS256
+            );
+    ```
+  </Tab>
+</Tabs>
+
+### Key Structure
+
+```java
+public class JWTSigningKeyInfo {
+    public String keyId;           // Unique identifier (kid)
+    public String keyString;       // Private key (PEM format)
+    public String publicKey;       // Public key (PEM format)  
+    public long createdAtTime;     // Creation timestamp
+    public String algorithm;       // "RS256"
+}
+```
+
+### Asymmetric Key Info
+
+```java
+public class JWTAsymmetricSigningKeyInfo extends JWTSigningKeyInfo {
+    public String publicKey;       // RSA public key
+    public String privateKey;      // RSA private key
+}
+```
+
+## Key Rotation
+
+### Configuration
+
+<ParamField path="access_token_signing_key_update_interval" type="number" default="168">
+  Hours between dynamic key rotations (default: 7 days)
+</ParamField>
+
+<ParamField path="access_token_dynamic_signing_key_update_interval" type="number" default="168">
+  Alias for access_token_signing_key_update_interval
+</ParamField>
+
+### Rotation Process
+
+```mermaid
+graph LR
+    A[Key Rotation Time] --> B[Generate New Key Pair]
+    B --> C[Add to Database]
+    C --> D[New Tokens Use New Key]
+    D --> E[Old Keys Remain Valid]
+    E --> F[Cleanup Expired Keys]
+```
+
+<Steps>
+  <Step title="Generate New Key">
+    Create new RSA-2048 key pair
+  </Step>
+  
+  <Step title="Store in Database">
+    Save with unique key ID and timestamp
+  </Step>
+  
+  <Step title="Start Using">
+    New JWTs signed with new key
+  </Step>
+  
+  <Step title="Transition Period">
+    Old keys remain for verification during token lifetime
+  </Step>
+  
+  <Step title="Cleanup">
+    Remove keys older than configured retention
+  </Step>
+</Steps>
+
+## JWKS Endpoint
+
+SuperTokens exposes a JWKS (JSON Web Key Set) endpoint for public key distribution:
+
+```
+GET /.well-known/jwks.json
+```
+
+### JWKS Response Format
+
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "s-2de612a5-a5ba-413e-9216-4c43e2e78c86",
+      "n": "xGOr_H5e...[base64-encoded-modulus]...3fQ",
+      "e": "AQAB",
+      "alg": "RS256",
+      "use": "sig"
+    },
+    {
+      "kty": "RSA",
+      "kid": "d-a89c3f12-9b3d-4e21-8f65-1c23d4e56f78",
+      "n": "yH1s_K6f...[base64-encoded-modulus]...8aP",
+      "e": "AQAB",
+      "alg": "RS256",
+      "use": "sig"
+    }
+  ]
+}
+```
+
+### Key Fields
+
+<ParamField path="kty" type="string">
+  Key type, always "RSA" for SuperTokens
+</ParamField>
+
+<ParamField path="kid" type="string">
+  Key ID matching the `kid` in JWT headers
+</ParamField>
+
+<ParamField path="n" type="string">
+  RSA modulus (base64url-encoded)
+</ParamField>
+
+<ParamField path="e" type="string">
+  RSA public exponent (base64url-encoded)
+</ParamField>
+
+<ParamField path="alg" type="string">
+  Algorithm, always "RS256"
+</ParamField>
+
+<ParamField path="use" type="string">
+  Key use, always "sig" (signature)
+</ParamField>
+
+## Verifying JWTs
+
+### Using JWKS Endpoint
+
+```javascript
+// Node.js example using jwks-rsa
+const jwksClient = require('jwks-rsa');
+const jwt = require('jsonwebtoken');
+
+const client = jwksClient({
+  jwksUri: 'https://your-supertokens-instance/.well-known/jwks.json',
+  cache: true,
+  rateLimit: true
+});
+
+function getKey(header, callback) {
+  client.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      callback(err);
+    } else {
+      const signingKey = key.getPublicKey();
+      callback(null, signingKey);
+    }
+  });
+}
+
+// Verify JWT
+jwt.verify(token, getKey, {
+  algorithms: ['RS256'],
+  issuer: 'https://api.example.com'
+}, (err, decoded) => {
+  if (err) {
+    console.error('Invalid token:', err);
+  } else {
+    console.log('Decoded payload:', decoded);
+  }
+});
+```
+
+### Java Verification
+
+```java
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.auth0.jwt.interfaces.RSAKeyProvider;
+
+public DecodedJWT verifyJWT(String token) {
+    // Get public key from JWKS
+    DecodedJWT jwt = JWT.decode(token);
+    String kid = jwt.getKeyId();
+    
+    // Fetch key from JWKS endpoint
+    RSAPublicKey publicKey = fetchPublicKeyFromJWKS(kid);
+    
+    // Verify signature
+    Algorithm algorithm = Algorithm.RSA256(publicKey, null);
+    
+    DecodedJWT verified = JWT.require(algorithm)
+        .withIssuer("https://api.example.com")
+        .build()
+        .verify(token);
+    
+    return verified;
+}
+```
+
+## Multi-Tenancy Support
+
+Keys are **app-level**, not tenant-level:
+
+```java
+// All tenants in an app share the same keys
+AppIdentifier appIdentifier = new AppIdentifier(
+    connectionUriDomain,
+    appId  // Same appId = same keys
+);
+
+JWTSigningKeyInfo key = SigningKeys.getInstance(
+    appIdentifier, main
+).getStaticKeyForAlgorithm(
+    JWTSigningKey.SupportedAlgorithms.RS256
+);
+```
+
+<Note>
+  Different apps have different signing keys, providing isolation between apps in the same SuperTokens instance.
+</Note>
+
+## Use Cases
+
+### API Authentication Tokens
+
+```java
+// Create API token with scopes
+JsonObject payload = new JsonObject();
+payload.addProperty("userId", userId);
+payload.addProperty("scope", "read:users write:users admin:all");
+payload.addProperty("type", "api_token");
+
+String apiToken = JWTSigningFunctions.createJWTToken(
+    appIdentifier, main, "RS256", payload,
+    "https://api.example.com",
+    86400,  // 24 hours
+    false   // Use static key for API tokens
+);
+```
+
+### Magic Link Tokens
+
+```java
+// Short-lived token for magic links
+JsonObject payload = new JsonObject();
+payload.addProperty("email", email);
+payload.addProperty("action", "email_verification");
+payload.addProperty("nonce", UUID.randomUUID().toString());
+
+String magicLinkToken = JWTSigningFunctions.createJWTToken(
+    appIdentifier, main, "RS256", payload,
+    "https://api.example.com",
+    900,    // 15 minutes
+    true    // Use dynamic key
+);
+
+String magicLink = "https://example.com/verify?token=" + magicLinkToken;
+// Send via email
+```
+
+### Webhook Signatures
+
+```java
+// Sign webhook payloads
+JsonObject webhookPayload = new JsonObject();
+webhookPayload.addProperty("event", "user.created");
+webhookPayload.addProperty("userId", userId);
+webhookPayload.addProperty("timestamp", System.currentTimeMillis());
+
+String webhookToken = JWTSigningFunctions.createJWTToken(
+    appIdentifier, main, "RS256", webhookPayload,
+    "https://api.example.com",
+    300,    // 5 minutes
+    false   // Use static key for webhooks
+);
+
+// Send in webhook header
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create(webhookUrl))
+    .header("X-Webhook-Signature", webhookToken)
+    .POST(HttpRequest.BodyPublishers.ofString(
+        webhookPayload.toString()
+    ))
+    .build();
+```
+
+### Service-to-Service Authentication
+
+```java
+// Create service token
+JsonObject payload = new JsonObject();
+payload.addProperty("serviceId", "payment-service");
+payload.addProperty("scope", "internal:all");
+
+String serviceToken = JWTSigningFunctions.createJWTToken(
+    appIdentifier, main, "RS256", payload,
+    "https://api.example.com",
+    3600,   // 1 hour
+    false   // Static key
+);
+
+// Use for internal API calls
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create(internalApiUrl))
+    .header("Authorization", "Bearer " + serviceToken)
+    .GET()
+    .build();
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Short Expiry" icon="clock">
+    Keep JWT validity short (minutes to hours, not days)
+  </Card>
+  <Card title="Include Minimal Claims" icon="minimize">
+    Only include necessary data in payload
+  </Card>
+  <Card title="Dynamic Keys for Security" icon="rotate">
+    Use rotating keys for enhanced security
+  </Card>
+  <Card title="Static Keys for Persistence" icon="lock">
+    Use static keys for long-lived tokens
+  </Card>
+  <Card title="Validate on Receipt" icon="shield-check">
+    Always verify signature, expiry, and issuer
+  </Card>
+  <Card title="Cache JWKS" icon="database">
+    Cache public keys to reduce JWKS endpoint calls
+  </Card>
+</CardGroup>
+
+## Security Considerations
+
+<Warning>
+  **Never include sensitive data** in JWTs:
+  - Passwords or password hashes
+  - API keys or secrets
+  - Personal identifiable information (PII) unless necessary
+  - Credit card information
+  
+  JWTs are **signed but not encrypted** - the payload is readable by anyone.
+</Warning>
+
+### Signature Verification
+
+Always verify:
+1. **Signature**: Using public key from JWKS
+2. **Expiry** (`exp` claim)
+3. **Issued At** (`iat` claim) 
+4. **Issuer** (`iss` claim)
+5. **Audience** (`aud` claim, if used)
+
+### Key Management
+
+- Store private keys securely
+- Rotate dynamic keys regularly
+- Monitor for compromised keys
+- Have key rotation plan for emergencies
+
+## Related Topics
+
+- [Session Management](/concepts/sessions)
+- [Security Features](/concepts/security)
+- [Multi-Tenancy](/concepts/multitenancy)

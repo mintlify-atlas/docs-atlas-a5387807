@@ -1,0 +1,219 @@
+---
+title: App Management
+description: Create, update, and manage apps in SuperTokens
+---
+
+## Overview
+
+Apps represent separate applications or environments within your SuperTokens instance. Each app contains one or more tenants and can have its own configuration.
+
+## PUT /recipe/multitenancy/app
+
+Create or update an application.
+
+### Request Body
+
+```json
+{
+  "appId": "string (optional)",
+  "emailPasswordEnabled": "boolean (optional)",
+  "passwordlessEnabled": "boolean (optional)",
+  "thirdPartyEnabled": "boolean (optional)",
+  "coreConfig": {
+    // App-specific core configuration
+  }
+}
+```
+
+### Parameters
+
+- **appId** (string, optional): Unique identifier for the app. If not provided, defaults to "public"
+- **emailPasswordEnabled** (boolean, optional): Enable email/password authentication for all tenants in this app
+- **passwordlessEnabled** (boolean, optional): Enable passwordless authentication for all tenants in this app
+- **thirdPartyEnabled** (boolean, optional): Enable third-party (social) authentication for all tenants in this app
+- **coreConfig** (object, optional): App-specific configuration that applies to all tenants
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "createdNew": "boolean"
+}
+```
+
+- **createdNew**: `true` if a new app was created, `false` if existing app was updated
+
+### Example
+
+```bash
+curl -X PUT https://your-api-domain.com/recipe/multitenancy/app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "appId": "production",
+    "emailPasswordEnabled": true,
+    "thirdPartyEnabled": true,
+    "coreConfig": {
+      "access_token_validity": 3600
+    }
+  }'
+```
+
+## GET /recipe/multitenancy/app/list
+
+List all apps in the current connection URI domain.
+
+**Note**: This endpoint can only be called from the public tenant of the public app.
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "apps": [
+    {
+      "appId": "string",
+      "tenants": [
+        {
+          "tenantId": "string",
+          "emailPassword": {
+            "enabled": "boolean"
+          },
+          "passwordless": {
+            "enabled": "boolean"
+          },
+          "thirdParty": {
+            "enabled": "boolean",
+            "providers": []
+          },
+          "coreConfig": {}
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Example
+
+```bash
+curl -X GET https://your-api-domain.com/recipe/multitenancy/app/list
+```
+
+## DELETE /recipe/multitenancy/app
+
+Remove an app and all its tenants.
+
+### Request Body
+
+```json
+{
+  "appId": "string"
+}
+```
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "didExist": "boolean"
+}
+```
+
+- **didExist**: `true` if the app existed and was deleted, `false` if it didn't exist
+
+### Example
+
+```bash
+curl -X DELETE https://your-api-domain.com/recipe/multitenancy/app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "appId": "staging"
+  }'
+```
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/multitenancy/CreateOrUpdateAppAPI.java:36` and `ListAppsAPI.java:43`
+- Recipe: `MULTITENANCY`
+- App IDs are normalized and validated before use
+- The public app (ID: "public") is created automatically
+- Each app automatically gets a public tenant on creation
+- Configuration is inherited by tenants within the app
+- Protected configuration values can be hidden based on API key permissions
+
+## App vs Tenant Configuration
+
+### App-level Configuration
+
+Configuration set at the app level applies to all tenants within that app:
+
+- Core settings (token validity, password policy, etc.)
+- Enabled authentication methods
+- Default third-party providers
+
+### Tenant-level Overrides
+
+Tenants can override app-level configuration:
+
+- Enable/disable specific authentication methods
+- Configure tenant-specific providers
+- Customize token validity and other settings
+
+## Use Cases
+
+### Multiple Environments
+
+Create separate apps for different deployment environments:
+
+```bash
+# Production app
+curl -X PUT https://your-api-domain.com/recipe/multitenancy/app \
+  -d '{"appId": "production"}'
+
+# Staging app
+curl -X PUT https://your-api-domain.com/recipe/multitenancy/app \
+  -d '{"appId": "staging"}'
+
+# Development app
+curl -X PUT https://your-api-domain.com/recipe/multitenancy/app \
+  -d '{"appId": "development"}'
+```
+
+### Multi-product Company
+
+Separate apps for different products:
+
+```bash
+# E-commerce app
+curl -X PUT https://your-api-domain.com/recipe/multitenancy/app \
+  -d '{"appId": "ecommerce", "emailPasswordEnabled": true}'
+
+# Admin portal app
+curl -X PUT https://your-api-domain.com/recipe/multitenancy/app \
+  -d '{"appId": "admin", "passwordlessEnabled": true}'
+```
+
+## Permissions
+
+- **Listing apps**: Only allowed from the public tenant of the public app
+- **Creating/updating apps**: Must be done from the public tenant context
+- **Deleting apps**: The public app cannot be deleted
+
+## Best Practices
+
+1. Use descriptive app IDs that indicate purpose (e.g., "production", "api-v2")
+2. Configure common settings at the app level to avoid repetition
+3. Keep the number of apps minimal - use tenants for isolation within an app
+4. Document your app structure and intended use
+5. Use separate apps for completely isolated environments (prod/staging)
+6. Back up app configuration before making changes
+
+## Connection URI Domains
+
+Apps are grouped under connection URI domains. In most deployments, you'll have a single connection URI domain. For more complex setups:
+
+- **PUT /recipe/multitenancy/connectionuridomain** - Create or update a connection URI domain
+- **GET /recipe/multitenancy/connectionuridomain/list** - List all connection URI domains
+- **DELETE /recipe/multitenancy/connectionuridomain** - Remove a connection URI domain

@@ -1,0 +1,170 @@
+---
+title: Token Endpoint
+description: OAuth 2.0 token endpoint for issuing and refreshing tokens
+---
+
+## POST /recipe/oauth/token
+
+Issues or refreshes OAuth 2.0 access tokens. Supports authorization code, refresh token, and client credentials grant types.
+
+## Request Body
+
+```json
+{
+  "iss": "string",
+  "inputBody": {
+    "grant_type": "authorization_code | refresh_token | client_credentials",
+    "code": "string (for authorization_code)",
+    "redirect_uri": "string (for authorization_code)",
+    "refresh_token": "string (for refresh_token)",
+    "client_id": "string (optional if using Authorization header)",
+    "client_secret": "string (optional if using Authorization header)"
+  },
+  "authorizationHeader": "string (optional)",
+  "access_token": {
+    // Custom claims for access token (required for authorization_code)
+  },
+  "id_token": {
+    // Custom claims for ID token (required for authorization_code)
+  },
+  "useStaticSigningKey": "boolean (optional)"
+}
+```
+
+### Parameters
+
+- **iss** (string, required): Token issuer URL
+
+- **inputBody** (object, required): Token request parameters
+  - **grant_type** (string, required): One of:
+    - `authorization_code`: Exchange authorization code for tokens
+    - `refresh_token`: Exchange refresh token for new access token
+    - `client_credentials`: M2M authentication
+  
+  - **code** (string, required for authorization_code): Authorization code from /auth endpoint
+  
+  - **redirect_uri** (string, required for authorization_code): Must match the redirect_uri used in /auth
+  
+  - **refresh_token** (string, required for refresh_token): Valid refresh token
+  
+  - **client_id** (string, optional): OAuth client ID (can be provided via Authorization header instead)
+  
+  - **client_secret** (string, optional): OAuth client secret (can be provided via Authorization header instead)
+
+- **authorizationHeader** (string, optional): Basic authentication header containing Base64-encoded `client_id:client_secret`
+
+- **access_token** (object, required for authorization_code): Additional claims to include in access token
+
+- **id_token** (object, required for authorization_code): Additional claims to include in ID token
+
+- **useStaticSigningKey** (boolean, optional): Use static signing key. Defaults to `true`, set to `false` for dynamic keys
+
+## Response
+
+### Success Response
+
+```json
+{
+  "status": "OK",
+  "access_token": "string",
+  "token_type": "Bearer",
+  "expires_in": "number",
+  "refresh_token": "string (optional)",
+  "scope": "string",
+  "id_token": "string (optional)"
+}
+```
+
+- **access_token** (string): JWT access token
+- **token_type** (string): Always "Bearer"
+- **expires_in** (number): Token lifetime in seconds
+- **refresh_token** (string, optional): Refresh token (not returned if refresh token rotation is enabled and refreshing)
+- **scope** (string): Granted OAuth scopes
+- **id_token** (string, optional): OpenID Connect ID token
+
+## Grant Type Details
+
+### Authorization Code
+
+Exchanges an authorization code for tokens. This is the most common flow for web applications.
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "iss": "https://your-api-domain.com",
+    "inputBody": {
+      "grant_type": "authorization_code",
+      "code": "auth_code_here",
+      "redirect_uri": "https://your-app.com/callback",
+      "client_id": "stcl_abc123"
+    },
+    "access_token": {
+      "custom_claim": "value"
+    },
+    "id_token": {
+      "custom_claim": "value"
+    }
+  }'
+```
+
+### Refresh Token
+
+Exchanges a refresh token for a new access token.
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "iss": "https://your-api-domain.com",
+    "inputBody": {
+      "grant_type": "refresh_token",
+      "refresh_token": "refresh_token_here",
+      "client_id": "stcl_abc123"
+    }
+  }'
+```
+
+### Client Credentials
+
+Machine-to-machine authentication using client credentials.
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/oauth/token \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic base64(client_id:client_secret)" \
+  -d '{
+    "iss": "https://your-api-domain.com",
+    "inputBody": {
+      "grant_type": "client_credentials"
+    }
+  }'
+```
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/oauth/OAuthTokenAPI.java:68`
+- Recipe: `OAUTH`
+- Refresh token requests are synchronized using named locks to prevent race conditions
+- The endpoint validates refresh tokens before issuing new tokens
+- Inactive or invalid refresh tokens return a `token_inactive` error
+- OAuth sessions are created/updated with token metadata (gid, jti, expiry)
+- For refresh token rotation, old tokens are invalidated when new ones are issued
+- Client credentials tokens are tracked as M2M tokens
+- Session handles in tokens trigger last active time updates
+
+## Error Responses
+
+### Invalid Token
+
+```json
+{
+  "error": "token_inactive",
+  "error_description": "Token is inactive because it is malformed, expired or otherwise invalid.",
+  "status_code": 401
+}
+```
+
+### Client Not Found
+
+Returns an OAuth client not found error if the client_id is invalid.

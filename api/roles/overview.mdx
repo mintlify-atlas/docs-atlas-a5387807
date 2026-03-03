@@ -1,0 +1,53 @@
+---
+title: User Roles API Overview
+description: Manage user roles and permissions in SuperTokens
+---
+
+The User Roles API allows you to create roles, assign them to users, and manage permissions. Roles are defined at the app level, while role assignments are tenant-specific.
+
+## Key Concepts
+
+- **Roles**: Named groups that can have associated permissions
+- **Permissions**: String-based capabilities that can be assigned to roles
+- **App-specific operations**: Creating roles and managing their permissions
+- **Tenant-specific operations**: Assigning roles to users
+
+## Available Endpoints
+
+### Role Management
+
+- `PUT /recipe/role` - Create a new role or modify its permissions
+- `GET /recipe/roles` - Get all roles
+- `GET /recipe/role/permissions` - Get permissions for a specific role
+- `POST /recipe/role/permissions` - Add permissions to a role
+- `DELETE /recipe/role/permissions` - Remove permissions from a role
+- `DELETE /recipe/role` - Delete a role
+
+### User Role Assignment
+
+- `PUT /recipe/user/role` - Assign a role to a user
+- `GET /recipe/user/roles` - Get all roles for a user
+- `DELETE /recipe/user/role` - Remove a role from a user
+
+### Querying
+
+- `GET /recipe/role/users` - Get all users with a specific role
+- `GET /recipe/permission/roles` - Get all roles that have a specific permission
+
+## Response Format
+
+All endpoints return JSON responses with a `status` field. Common status values:
+
+- `OK` - Request succeeded
+- `UNKNOWN_ROLE_ERROR` - The specified role does not exist
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Role" href="/api/roles/create">
+    Learn how to create a new role with permissions
+  </Card>
+  <Card title="Assign Role" href="/api/roles/assign">
+    Assign roles to users in your application
+  </Card>
+</CardGroup>

@@ -1,0 +1,149 @@
+---
+title: WebAuthn Authentication
+description: Endpoints for WebAuthn credential authentication and sign-in
+---
+
+## Generate Sign-In Options
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/webauthn/options/signin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "relyingPartyId": "example.com",
+    "relyingPartyName": "My App",
+    "origin": "https://example.com",
+    "timeout": 60000,
+    "userVerification": "preferred",
+    "userPresence": false
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "webauthnGeneratedOptionsId": "generated-options-id",
+  "publicKey": {
+    "challenge": "base64-encoded-challenge",
+    "timeout": 60000,
+    "rpId": "example.com",
+    "userVerification": "preferred",
+    "allowCredentials": []
+  }
+}
+```
+</ResponseExample>
+
+<ParamField path="relyingPartyId" type="string" required>
+  Relying party identifier (must match registration)
+</ParamField>
+
+<ParamField path="relyingPartyName" type="string" required>
+  Human-readable name of the relying party
+</ParamField>
+
+<ParamField path="origin" type="string" required>
+  Origin URL for credential binding
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Timeout in milliseconds (default: 60000)
+</ParamField>
+
+<ParamField path="userVerification" type="string">
+  User verification requirement: "required", "preferred", "discouraged" (default: "preferred")
+</ParamField>
+
+<ParamField path="userPresence" type="boolean">
+  Whether user presence is required (default: false)
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK" or "INVALID_OPTIONS_ERROR"
+</ResponseField>
+
+<ResponseField name="webauthnGeneratedOptionsId" type="string">
+  Unique identifier for these options (used in subsequent sign-in call)
+</ResponseField>
+
+<ResponseField name="publicKey" type="object">
+  WebAuthn PublicKeyCredentialRequestOptions to pass to navigator.credentials.get()
+</ResponseField>
+
+---
+
+## Sign In with Credential
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/webauthn/signin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "webauthnGeneratedOptionsId": "generated-options-id",
+    "credential": {
+      "id": "credential-id",
+      "rawId": "base64-raw-id",
+      "response": {
+        "authenticatorData": "base64-authenticator-data",
+        "clientDataJSON": "base64-client-data",
+        "signature": "base64-signature",
+        "userHandle": "base64-user-handle"
+      },
+      "type": "public-key"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "user": {
+    "id": "user-id",
+    "isPrimaryUser": false,
+    "tenantIds": ["public"],
+    "emails": ["user@example.com"],
+    "phoneNumbers": [],
+    "thirdParty": [],
+    "loginMethods": [
+      {
+        "recipeId": "webauthn",
+        "recipeUserId": "recipe-user-id",
+        "tenantIds": ["public"],
+        "email": "user@example.com",
+        "timeJoined": 1234567890,
+        "verified": true,
+        "webauthN": {
+          "credentialIds": ["credential-id"]
+        }
+      }
+    ],
+    "timeJoined": 1234567890
+  },
+  "recipeUserId": "recipe-user-id"
+}
+```
+</ResponseExample>
+
+<ParamField path="webauthnGeneratedOptionsId" type="string" required>
+  ID from the options generation response
+</ParamField>
+
+<ParamField path="credential" type="object" required>
+  PublicKeyCredential object from navigator.credentials.get()
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_OPTIONS_ERROR", "INVALID_AUTHENTICATOR_ERROR", "INVALID_CREDENTIALS_ERROR", "OPTIONS_NOT_FOUND_ERROR", "CREDENTIAL_NOT_FOUND_ERROR", or "UNKNOWN_USER_ID_ERROR"
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Authenticated user object with login methods
+</ResponseField>
+
+<ResponseField name="recipeUserId" type="string">
+  The recipe user ID for the authenticated login method
+</ResponseField>

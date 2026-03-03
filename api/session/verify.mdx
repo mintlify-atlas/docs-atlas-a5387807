@@ -1,0 +1,300 @@
+---
+title: 'Verify Session'
+description: 'Verify an access token and retrieve session information'
+---
+
+## Endpoint
+
+```
+POST /recipe/session/verify
+```
+
+Verifies an access token and returns the associated session information. This endpoint should be called on each protected API request to authenticate the user.
+
+## Request Body
+
+<ParamField body="accessToken" type="string" required>
+  The JWT access token to verify. This is typically extracted from the Authorization header or cookies.
+</ParamField>
+
+<ParamField body="antiCsrfToken" type="string">
+  The anti-CSRF token to validate (required if anti-CSRF is enabled and `doAntiCsrfCheck` is `true`).
+</ParamField>
+
+<ParamField body="doAntiCsrfCheck" type="boolean" required>
+  Whether to perform anti-CSRF token validation. Set to `true` for state-modifying requests (POST, PUT, DELETE).
+</ParamField>
+
+<ParamField body="enableAntiCsrf" type="boolean" required>
+  Whether anti-CSRF protection is enabled for this session. Must match the value used during session creation.
+</ParamField>
+
+<ParamField body="checkDatabase" type="boolean">
+  Whether to check if the session exists in the database. Enables token blacklisting at the cost of a database query.
+  
+  - `true` - Verify session exists in database (enables immediate revocation)
+  - `false` - Trust the JWT signature only (better performance)
+  
+  For CDI >= 2.21, defaults to the value provided. For CDI < 2.21, uses the `access_token_blacklisting` config setting.
+</ParamField>
+
+## Response
+
+### Success Response
+
+<ResponseField name="status" type="string">
+  Returns `"OK"` on successful verification.
+</ResponseField>
+
+<ResponseField name="session" type="object">
+  Session metadata
+  
+  <Expandable title="Session object">
+    <ResponseField name="handle" type="string">
+      Unique session identifier.
+    </ResponseField>
+    
+    <ResponseField name="userId" type="string">
+      Primary user ID associated with the session.
+    </ResponseField>
+    
+    <ResponseField name="recipeUserId" type="string">
+      Recipe-specific user ID (CDI version >= 4.0).
+    </ResponseField>
+    
+    <ResponseField name="userDataInJWT" type="object">
+      The custom data stored in the JWT payload.
+    </ResponseField>
+    
+    <ResponseField name="tenantId" type="string">
+      Tenant ID for the session (CDI version >= 3.0).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="accessToken" type="object">
+  New access token (only if token was rotated)
+  
+  <Expandable title="Token details">
+    <ResponseField name="token" type="string">
+      New JWT access token.
+    </ResponseField>
+    
+    <ResponseField name="expiry" type="number">
+      Unix timestamp (milliseconds) when the token expires.
+    </ResponseField>
+    
+    <ResponseField name="createdTime" type="number">
+      Unix timestamp (milliseconds) when the token was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Error Responses
+
+<ResponseField name="status" type="string">
+  Error status code:
+  - `"UNAUTHORISED"` - Invalid token or session not found
+  - `"TRY_REFRESH_TOKEN"` - Access token expired, client should refresh
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error description explaining why verification failed.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.com/recipe/session/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "antiCsrfToken": "anti-csrf-token-value",
+    "doAntiCsrfCheck": true,
+    "enableAntiCsrf": true,
+    "checkDatabase": false
+  }'
+```
+
+## Example Response
+
+### Successful Verification
+
+```json
+{
+  "status": "OK",
+  "session": {
+    "handle": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "userId": "user123",
+    "recipeUserId": "user123",
+    "userDataInJWT": {
+      "role": "admin",
+      "email": "user@example.com"
+    },
+    "tenantId": "public"
+  },
+  "accessToken": null
+}
+```
+
+### Unauthorized Response
+
+```json
+{
+  "status": "UNAUTHORISED",
+  "message": "Either the session has ended or has been blacklisted"
+}
+```
+
+### Try Refresh Token Response
+
+```json
+{
+  "status": "TRY_REFRESH_TOKEN",
+  "message": "anti-csrf check failed"
+}
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+Implemented in:
+- API Handler: `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/session/VerifySessionAPI.java:59`
+- Session Logic: `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:337`
+
+### Verification Process
+
+1. **Parse and Verify JWT** - Validates signature, expiry, and structure
+2. **Extract Tenant Information** - Derives tenant ID from access token
+3. **Anti-CSRF Check** - Validates anti-CSRF token if enabled
+4. **Database Check** - Optionally verifies session exists and is not revoked
+5. **Token Rotation** - Issues new access token if refresh token was rotated
+6. **Return Session Data** - Provides session information and optional new token
+
+### Token Rotation
+
+A new access token is issued if:
+
+- The refresh token associated with this access token has been rotated
+- The JWT payload in the database differs from the token payload
+- The `parentRefreshTokenHash1` in the token doesn't match current state
+
+This ensures clients always have tokens matching the latest session state.
+
+## Security Considerations
+
+### Anti-CSRF Protection
+
+<Warning>
+  **State-Modifying Requests**: Always set `doAntiCsrfCheck: true` for requests that modify data (POST, PUT, DELETE) when anti-CSRF is enabled.
+</Warning>
+
+Anti-CSRF checks should be:
+- **Enabled** (`doAntiCsrfCheck: true`) for state-modifying requests
+- **Disabled** (`doAntiCsrfCheck: false`) for read-only requests (GET) to reduce overhead
+
+### Database Checking
+
+<Tip>
+  **Performance vs Security**: Set `checkDatabase: true` for sensitive operations requiring immediate revocation capability. Use `false` for high-throughput read operations.
+</Tip>
+
+Database checking tradeoffs:
+
+**Enabled** (`checkDatabase: true`):
+- ✓ Sessions can be revoked immediately
+- ✓ Detects stolen or blacklisted tokens
+- ✗ Adds database query latency to each request
+- ✗ Increases database load
+
+**Disabled** (`checkDatabase: false`):
+- ✓ Better performance (no database query)
+- ✓ Lower database load
+- ✗ Revoked sessions remain valid until token expiry
+- ✗ Cannot detect blacklisted tokens
+
+### Token Theft Detection
+
+If verification returns `TRY_REFRESH_TOKEN`, the client should:
+
+1. Call the refresh endpoint with the refresh token
+2. If refresh succeeds, update stored tokens and retry the request
+3. If refresh fails with `UNAUTHORISED` or `TOKEN_THEFT_DETECTED`, log out the user
+
+## Common Use Cases
+
+### API Request Authentication
+
+```javascript
+// Middleware to protect API endpoints
+async function verifySession(req, res, next) {
+  const accessToken = req.headers.authorization?.replace('Bearer ', '');
+  const antiCsrfToken = req.headers['anti-csrf'];
+  
+  const response = await fetch('https://your-domain.com/recipe/session/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      accessToken,
+      antiCsrfToken,
+      doAntiCsrfCheck: req.method !== 'GET',
+      enableAntiCsrf: true,
+      checkDatabase: false
+    })
+  });
+  
+  const data = await response.json();
+  
+  if (data.status === 'OK') {
+    req.session = data.session;
+    next();
+  } else if (data.status === 'TRY_REFRESH_TOKEN') {
+    res.status(401).json({ needsRefresh: true });
+  } else {
+    res.status(401).json({ message: 'Unauthorized' });
+  }
+}
+```
+
+### Sensitive Operation Verification
+
+```javascript
+// Verify with database check for account deletion
+const response = await fetch('https://your-domain.com/recipe/session/verify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    accessToken,
+    antiCsrfToken,
+    doAntiCsrfCheck: true,
+    enableAntiCsrf: true,
+    checkDatabase: true  // Ensure session wasn't revoked
+  })
+});
+```
+
+## Error Handling
+
+### Unauthorized Errors
+
+Common causes:
+- Access token has expired
+- Session was revoked
+- Token signature is invalid
+- Anti-CSRF token doesn't match
+- Session not found in database (when `checkDatabase: true`)
+
+### Try Refresh Token
+
+Causes:
+- Access token expired but session still valid
+- Anti-CSRF check failed
+- Token signing key rotated
+
+## CDI Version Compatibility
+
+- **CDI < 2.21**: Returns JWT signing public key in response
+- **CDI >= 2.21**: `checkDatabase` parameter available, no signing key in response
+- **CDI >= 3.0**: `tenantId` included in session response
+- **CDI >= 4.0**: `recipeUserId` included in session response

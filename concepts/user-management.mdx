@@ -1,0 +1,662 @@
+---
+title: User Management
+description: Manage user lifecycles, link accounts across authentication methods, and handle primary users in SuperTokens Core
+---
+
+## Overview
+
+SuperTokens Core provides comprehensive user management with support for multiple authentication methods per user, account linking, and user ID mapping for external identity systems.
+
+## User Types
+
+### Recipe User vs Primary User
+
+SuperTokens distinguishes between two types of users:
+
+<CardGroup cols={2}>
+  <Card title="Recipe User" icon="user">
+    A user authenticated through a single method (email/password, social login, etc.)
+  </Card>
+  <Card title="Primary User" icon="users">
+    A user with multiple authentication methods linked together
+  </Card>
+</CardGroup>
+
+```java
+public class AuthRecipeUserInfo {
+    public String id;                    // Primary user ID
+    public boolean isPrimaryUser;
+    public LoginMethod[] loginMethods;   // All linked auth methods
+    public String[] tenantIds;
+    public long timeJoined;
+}
+
+public class LoginMethod {
+    public String recipeUserId;          // Unique per login method
+    public RECIPE_ID recipeId;           // emailpassword, thirdparty, passwordless
+    public String email;
+    public String phoneNumber;
+    public ThirdParty thirdParty;
+    public String[] tenantIds;
+    public boolean verified;
+}
+```
+
+## Creating Users
+
+### Email/Password Users
+
+```java
+SignUpResponse response = EmailPassword.signUp(
+    tenantIdentifier,
+    storage,
+    main,
+    email,
+    password
+);
+
+if (response.user != null) {
+    // User created successfully
+    AuthRecipeUserInfo user = response.user;
+}
+```
+
+### Third-Party (Social) Users
+
+```java
+SignInUpResponse response = ThirdParty.signInUp(
+    tenantIdentifier,
+    storage,
+    main,
+    thirdPartyId,        // "google", "github", etc.
+    thirdPartyUserId,    // User ID from provider
+    email,
+    isEmailVerified
+);
+```
+
+### Passwordless Users
+
+```java
+CreateCodeResponse codeResponse = Passwordless.createCode(
+    tenantIdentifier,
+    storage,
+    main,
+    email,              // or phoneNumber
+    null,               // phoneNumber (if email is null)
+    deviceId,
+    userInputCode
+);
+
+ConsumeCodeResponse response = Passwordless.consumeCode(
+    tenantIdentifier,
+    storage,
+    main,
+    deviceId,
+    deviceIdHash,
+    userInputCode,
+    linkCode
+);
+```
+
+## Account Linking
+
+### Making a User Primary
+
+Before linking accounts, you must designate one as primary:
+
+```java
+CreatePrimaryUserResult result = AuthRecipe.createPrimaryUser(
+    main,
+    appIdentifier,
+    storage,
+    recipeUserId
+);
+
+if (!result.wasAlreadyAPrimaryUser) {
+    // User is now a primary user
+    AuthRecipeUserInfo primaryUser = result.user;
+}
+```
+
+### Linking Accounts
+
+Link a recipe user to a primary user:
+
+```java
+LinkAccountsResult result = AuthRecipe.linkAccounts(
+    main,
+    appIdentifier,
+    storage,
+    recipeUserId,        // User to link
+    primaryUserId        // Primary user to link to
+);
+
+if (result.wasLinked) {
+    // Account successfully linked
+    AuthRecipeUserInfo linkedUser = result.user;
+}
+```
+
+### Account Linking Checks
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/authRecipe/AuthRecipe.java`, SuperTokens validates:
+
+<Steps>
+  <Step title="Primary User Validation">
+    Ensure the primary user ID corresponds to an actual primary user
+  </Step>
+  
+  <Step title="Recipe User Validation">
+    Verify recipe user isn't already linked to another primary user
+  </Step>
+  
+  <Step title="Conflict Detection">
+    Check for account info conflicts (email, phone, third-party ID)
+  </Step>
+  
+  <Step title="Tenant Consistency">
+    Verify both users share at least one tenant
+  </Step>
+</Steps>
+
+### Unlinking Accounts
+
+```java
+boolean wasUnlinked = AuthRecipe.unlinkAccounts(
+    main,
+    appIdentifier,
+    storage,
+    recipeUserId
+);
+
+if (wasUnlinked) {
+    // Recipe user is now independent
+}
+```
+
+<Warning>
+  If you unlink the recipe user that is also the primary user ID, and there are other linked accounts, the primary user will be **deleted** and all sessions revoked.
+</Warning>
+
+## User Retrieval
+
+### Get User by ID
+
+```java
+AuthRecipeUserInfo user = AuthRecipe.getUserById(
+    appIdentifier,
+    storage,
+    userId  // Can be primary or recipe user ID
+);
+
+if (user != null) {
+    System.out.println("User email: " + user.loginMethods[0].email);
+    System.out.println("Is primary: " + user.isPrimaryUser);
+    System.out.println("Login methods: " + user.loginMethods.length);
+}
+```
+
+### Get Multiple Users
+
+```java
+List<AuthRecipeUserInfo> users = AuthRecipe.getUsersById(
+    appIdentifier,
+    storage,
+    Arrays.asList(userId1, userId2, userId3)
+);
+```
+
+### Get User by Email
+
+```java
+AuthRecipeUserInfo[] users = EmailPassword.getUsersByEmail(
+    tenantIdentifier,
+    storage,
+    email
+);
+```
+
+### Get User by Phone Number
+
+```java
+AuthRecipeUserInfo user = Passwordless.getUserByPhoneNumber(
+    tenantIdentifier,
+    storage,
+    phoneNumber
+);
+```
+
+### Get User by Third-Party Info
+
+```java
+AuthRecipeUserInfo user = ThirdParty.getUser(
+    tenantIdentifier,
+    storage,
+    thirdPartyId,
+    thirdPartyUserId
+);
+```
+
+## Pagination
+
+### List Users with Pagination
+
+```java
+UsersResponse response = AuthRecipe.getUsers(
+    tenantIdentifier,
+    storage,
+    limit,              // Max 500
+    timeJoinedOrder,    // "ASC" or "DESC"
+    paginationToken,    // null for first page
+    includeRecipeIds,   // Filter by recipe
+    includeEmails       // Filter by emails
+);
+
+for (AuthRecipeUserInfo user : response.users) {
+    // Process user
+}
+
+String nextToken = response.nextPaginationToken;
+```
+
+<Note>
+  The maximum pagination limit is **500 users** per request.
+</Note>
+
+## Updating User Information
+
+### Update Email
+
+```java
+// Email/Password
+EmailPassword.updateUsersEmailOrPassword(
+    appIdentifier,
+    storage,
+    recipeUserId,
+    newEmail,
+    null  // password
+);
+
+// Passwordless
+Passwordless.updateUser(
+    appIdentifier,
+    storage,
+    recipeUserId,
+    newEmail,
+    null  // phoneNumber
+);
+```
+
+### Update Password
+
+```java
+EmailPassword.updateUsersEmailOrPassword(
+    appIdentifier,
+    storage,
+    recipeUserId,
+    null,        // email
+    newPassword
+);
+```
+
+### Update Phone Number
+
+```java
+Passwordless.updateUser(
+    appIdentifier,
+    storage,
+    recipeUserId,
+    null,             // email
+    newPhoneNumber
+);
+```
+
+## User Deletion
+
+### Delete User
+
+Deletes user and all associated data:
+
+```java
+void deleteUser(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String userId  // Primary or recipe user ID
+) throws StorageQueryException {
+    AuthRecipeUserInfo user = AuthRecipe.getUserById(
+        appIdentifier, storage, userId
+    );
+    
+    if (user != null) {
+        // Delete all login methods
+        for (LoginMethod lm : user.loginMethods) {
+            // Delete recipe-specific data
+            deleteRecipeUser(appIdentifier, storage, lm.recipeUserId);
+        }
+        
+        // Delete non-auth data (sessions, metadata, roles)
+        deleteNonAuthRecipeData(appIdentifier, storage, userId);
+    }
+}
+```
+
+<Warning>
+  User deletion is **permanent** and cascades to:
+  - All sessions
+  - User metadata
+  - User roles
+  - Email verification tokens
+  - Password reset tokens
+  - TOTP devices
+</Warning>
+
+## User ID Mapping
+
+### External User IDs
+
+Map SuperTokens user IDs to your existing system:
+
+```java
+UserIdMapping.createUserIdMapping(
+    appIdentifier,
+    storage,
+    superTokensUserId,
+    externalUserId,
+    externalUserIdInfo  // Optional metadata
+);
+
+// Retrieve mapping
+io.supertokens.pluginInterface.useridmapping.UserIdMapping mapping =
+    UserIdMapping.getUserIdMapping(
+        appIdentifier,
+        storage,
+        userId,
+        UserIdType.ANY
+    );
+
+if (mapping != null) {
+    String externalId = mapping.externalUserId;
+    String superTokensId = mapping.superTokensUserId;
+}
+```
+
+### Using External IDs
+
+Once mapped, you can use external IDs in most operations:
+
+```java
+// Get user by external ID
+AuthRecipeUserInfo user = AuthRecipe.getUserById(
+    appIdentifier,
+    storage,
+    externalUserId  // Automatically resolved
+);
+
+// Create session with external ID
+SessionInformationHolder session = Session.createNewSession(
+    tenantIdentifier,
+    storage,
+    main,
+    externalUserId,  // Resolved to SuperTokens ID internally
+    userDataInJWT,
+    userDataInDatabase
+);
+```
+
+## Email Verification
+
+### Generate Verification Token
+
+```java
+String token = EmailVerification.generateEmailVerificationToken(
+    tenantIdentifier,
+    storage,
+    recipeUserId,
+    email
+);
+
+// Send token to user via email
+```
+
+### Verify Email
+
+```java
+EmailVerification.VerifyEmailResponse response = 
+    EmailVerification.verifyEmail(
+        tenantIdentifier,
+        storage,
+        token
+    );
+
+if (response.isVerified) {
+    // Email verified successfully
+    String userId = response.userId;
+    String email = response.email;
+}
+```
+
+### Check Verification Status
+
+```java
+boolean isVerified = EmailVerification.isEmailVerified(
+    appIdentifier,
+    storage,
+    recipeUserId,
+    email
+);
+```
+
+### Unverify Email
+
+```java
+EmailVerification.unverifyEmail(
+    appIdentifier,
+    storage,
+    recipeUserId,
+    email
+);
+```
+
+## Multi-Tenant User Management
+
+### Associate User with Tenant
+
+```java
+boolean wasAdded = Multitenancy.addUserIdToTenant(
+    main,
+    tenantIdentifier,
+    storage,
+    userId
+);
+```
+
+### Disassociate User from Tenant
+
+```java
+boolean wasRemoved = Multitenancy.removeUserIdFromTenant(
+    main,
+    tenantIdentifier,
+    storage,
+    userId,
+    externalUserId
+);
+```
+
+### List User's Tenants
+
+```java
+AuthRecipeUserInfo user = AuthRecipe.getUserById(
+    appIdentifier,
+    storage,
+    userId
+);
+
+String[] tenantIds = user.tenantIds;
+for (String tenantId : tenantIds) {
+    System.out.println("User in tenant: " + tenantId);
+}
+```
+
+## User Search
+
+### Search by Email
+
+```java
+AuthRecipeUserInfo[] users = EmailPassword.getUsersByEmail(
+    tenantIdentifier,
+    storage,
+    "user@example.com"
+);
+```
+
+### Search by Dashboard Tags
+
+```java
+List<String> userIds = storage.searchUsersWithDashboardTags(
+    appIdentifier,
+    new String[]{"premium", "admin"},
+    limit,
+    paginationToken
+);
+```
+
+## Active Users Tracking
+
+Track when users were last active:
+
+```java
+// Update last active timestamp
+ActiveUsers.updateLastActive(
+    appIdentifier,
+    main,
+    userId
+);
+
+// Count active users in time period
+int activeCount = ActiveUsers.countUsersActiveSince(
+    main,
+    appIdentifier,
+    System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)  // Last 30 days
+);
+```
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/ActiveUsers.java:15-52`:
+
+```java
+public static void updateLastActive(
+    AppIdentifier appIdentifier,
+    Main main,
+    String userId
+) {
+    Storage storage = StorageLayer.getStorage(
+        appIdentifier.getAsPublicTenantIdentifier(), main
+    );
+    StorageUtils.getActiveUsersStorage(storage)
+        .updateLastActive(appIdentifier, userId);
+}
+
+public static int countUsersActiveSince(
+    Main main,
+    AppIdentifier appIdentifier,
+    long time
+) {
+    Storage storage = StorageLayer.getStorage(
+        appIdentifier.getAsPublicTenantIdentifier(), main
+    );
+    return StorageUtils.getActiveUsersStorage(storage)
+        .countUsersActiveSince(appIdentifier, time);
+}
+```
+
+<Note>
+  Active user tracking is updated automatically during session operations.
+</Note>
+
+## User Count
+
+```java
+long totalUsers = AuthRecipe.getUsersCount(
+    tenantIdentifier,
+    storage,
+    includeRecipeIds  // Filter by specific recipes
+);
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Primary Users" icon="link">
+    Link accounts to provide seamless multi-method authentication
+  </Card>
+  <Card title="Handle Edge Cases" icon="triangle-exclamation">
+    Always check for null returns and handle exceptions
+  </Card>
+  <Card title="Verify Emails" icon="envelope-circle-check">
+    Implement email verification for security
+  </Card>
+  <Card title="Map External IDs" icon="id-card">
+    Use ID mapping to integrate with existing systems
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Creating and Linking Users
+
+```java
+// Create email/password user
+SignUpResponse emailUser = EmailPassword.signUp(
+    tenantIdentifier, storage, main, email, password
+);
+
+// Make it primary
+AuthRecipe.createPrimaryUser(
+    main, appIdentifier, storage, emailUser.user.id
+);
+
+// Sign in with Google
+SignInUpResponse googleUser = ThirdParty.signInUp(
+    tenantIdentifier, storage, main,
+    "google", googleUserId, email, true
+);
+
+// Link Google account
+AuthRecipe.linkAccounts(
+    main, appIdentifier, storage,
+    googleUser.user.loginMethods[0].recipeUserId,
+    emailUser.user.id
+);
+```
+
+### Migrating Users with Mapping
+
+```java
+// Create user in SuperTokens
+SignUpResponse response = EmailPassword.signUp(
+    tenantIdentifier, storage, main, email, password
+);
+
+// Map to your existing user ID
+UserIdMapping.createUserIdMapping(
+    appIdentifier,
+    storage,
+    response.user.id,
+    "your-system-user-123",
+    null
+);
+
+// Now use either ID
+AuthRecipeUserInfo user = AuthRecipe.getUserById(
+    appIdentifier,
+    storage,
+    "your-system-user-123"  // Works!
+);
+```
+
+## Related Topics
+
+- [Multi-Tenancy](/concepts/multitenancy)
+- [Bulk Import](/advanced/bulk-import)
+- [User Roles](/advanced/user-roles)
+- [User Metadata](/advanced/user-metadata)

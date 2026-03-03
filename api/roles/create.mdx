@@ -1,0 +1,76 @@
+---
+title: Create Role
+description: Create a new role or modify its permissions
+---
+
+## Endpoint
+
+```
+PUT /recipe/role
+```
+
+This is an app-specific API that creates a new role or updates the permissions for an existing role.
+
+## Request Body
+
+<ParamField body="role" type="string" required>
+  The name of the role to create or update. Cannot be empty or whitespace only.
+</ParamField>
+
+<ParamField body="permissions" type="string[]" optional>
+  Array of permission strings to assign to the role. Each permission must be a non-empty string. If not provided, the role will have no permissions.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X PUT https://your-api-domain.com/recipe/role \
+  -H "Content-Type: application/json" \
+  -d '{
+    "role": "admin",
+    "permissions": ["read:users", "write:users", "delete:users"]
+  }'
+```
+
+## Response
+
+<ResponseField name="status" type="string">
+  Always returns `"OK"`
+</ResponseField>
+
+<ResponseField name="createdNewRole" type="boolean">
+  - `true` if a new role was created
+  - `false` if an existing role's permissions were updated
+</ResponseField>
+
+## Response Example
+
+```json
+{
+  "status": "OK",
+  "createdNewRole": true
+}
+```
+
+## Implementation Details
+
+**Source**: `/workspace/source/src/main/java/io/supertokens/webserver/api/userroles/CreateRoleAPI.java:39`
+
+- Role names are trimmed of leading/trailing whitespace before processing
+- Permission strings are also trimmed and validated to be non-empty
+- This API requires public tenant access
+- If the role already exists, its permissions will be replaced with the new set
+
+## Error Responses
+
+<ResponseField name="error" type="BadRequestException">
+  Returned when:
+  - `role` field is empty or whitespace only
+  - Any permission in the `permissions` array is empty or whitespace only
+</ResponseField>
+
+## Next Steps
+
+<Card title="Assign Role to User" href="/api/roles/assign">
+  Learn how to assign this role to users
+</Card>

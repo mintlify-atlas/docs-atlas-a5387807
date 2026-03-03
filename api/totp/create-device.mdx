@@ -1,0 +1,113 @@
+---
+title: Create TOTP Device
+description: Register a new TOTP device for a user
+---
+
+## Endpoint
+
+```
+POST /recipe/totp/device
+```
+
+This is an app-specific API that creates a new TOTP device for a user. The response includes a secret key that should be used to generate a QR code for the user to scan with their authenticator app.
+
+## Request Body
+
+<ParamField body="userId" type="string" required>
+  The ID of the user creating the TOTP device. Cannot be empty.
+</ParamField>
+
+<ParamField body="deviceName" type="string" optional>
+  A friendly name for the device (e.g., "Google Authenticator", "iPhone"). If not provided, a name will be auto-generated. Cannot be empty string if provided.
+</ParamField>
+
+<ParamField body="skew" type="number" required>
+  The number of time windows to check before and after the current time. Must be >= 0. Recommended value: 1.
+</ParamField>
+
+<ParamField body="period" type="number" required>
+  The time period in seconds for TOTP code generation. Must be > 0. Standard value: 30.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/totp/device \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "deviceName": "Google Authenticator",
+    "skew": 1,
+    "period": 30
+  }'
+```
+
+## Response
+
+### Success Response
+
+<ResponseField name="status" type="string">
+  Returns `"OK"` when the device is successfully created
+</ResponseField>
+
+<ResponseField name="deviceName" type="string">
+  The name assigned to the device (auto-generated if not provided in request)
+</ResponseField>
+
+<ResponseField name="secret" type="string">
+  The secret key for the TOTP device. This should be used to generate a QR code for the user to scan. **This is only returned once - store it securely if needed.**
+</ResponseField>
+
+```json
+{
+  "status": "OK",
+  "deviceName": "Google Authenticator",
+  "secret": "JBSWY3DPEHPK3PXP"
+}
+```
+
+### Error Response
+
+<ResponseField name="status" type="string">
+  Returns `"DEVICE_ALREADY_EXISTS_ERROR"` when a device with the specified name already exists for this user
+</ResponseField>
+
+```json
+{
+  "status": "DEVICE_ALREADY_EXISTS_ERROR"
+}
+```
+
+## Implementation Details
+
+**Source**: `/workspace/source/src/main/java/io/supertokens/webserver/api/totp/CreateOrUpdateTotpDeviceAPI.java:28`
+
+- This API requires public tenant access
+- The device is created in an **unverified** state
+- The user must verify the device using the [Verify Device](/api/totp/verify-device) endpoint before it can be used for authentication
+- The secret key is base32-encoded and compatible with standard authenticator apps
+- Each user can have multiple TOTP devices with different names
+- The hashing algorithm and TOTP length (6-8 digits) are not configurable at creation time
+
+## Next Steps
+
+After creating a device:
+
+1. Generate a QR code from the secret key
+2. Display the QR code to the user to scan with their authenticator app
+3. Ask the user to enter a TOTP code to verify the device
+4. Call the [Verify Device](/api/totp/verify-device) endpoint with the user's code
+
+<Card title="Verify TOTP Device" href="/api/totp/verify-device">
+  Learn how to verify the newly created device
+</Card>
+
+## Error Responses
+
+<ResponseField name="error" type="BadRequestException">
+  Returned when:
+  - `userId` is empty
+  - `deviceName` is an empty string (null is allowed)
+  - `skew` is less than 0
+  - `period` is less than or equal to 0
+</ResponseField>

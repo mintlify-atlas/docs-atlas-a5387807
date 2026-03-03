@@ -1,0 +1,559 @@
+---
+title: OAuth 2.0
+description: OAuth 2.0 authorization server and client capabilities
+---
+
+## Overview
+
+SuperTokens Core provides a complete OAuth 2.0 implementation that can function as both an authorization server and OAuth client. The implementation is built on top of Ory Hydra and includes token management, introspection, and revocation capabilities.
+
+## OAuth 2.0 as Authorization Server
+
+SuperTokens can act as an OAuth 2.0 authorization server, allowing your application to issue OAuth tokens to third-party applications.
+
+### Client Management
+
+#### Create or Update OAuth Client
+
+Implemented in `io.supertokens.oauth.OAuth.addOrUpdateClient()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:360.
+
+**API Endpoint:**
+
+**POST** `/recipe/oauth/clients`
+
+**Request Body:**
+```json
+{
+  "clientId": "my-oauth-client",
+  "clientSecret": "secret-value",
+  "isClientCredentialsOnly": false,
+  "enableRefreshTokenRotation": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "clientId": "my-oauth-client",
+  "isClientCredentialsOnly": false,
+  "enableRefreshTokenRotation": true
+}
+```
+
+**Features:**
+- Client secret encryption at rest
+- Support for client credentials grant
+- Refresh token rotation
+- Multi-tenancy support
+
+#### List OAuth Clients
+
+**API Endpoint:**
+
+**GET** `/recipe/oauth/clients?clientIds=client1,client2`
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "clients": [
+    {
+      "clientId": "client1",
+      "clientSecret": "decrypted-secret",
+      "isClientCredentialsOnly": false,
+      "enableRefreshTokenRotation": true
+    }
+  ]
+}
+```
+
+#### Remove OAuth Client
+
+**API Endpoint:**
+
+**POST** `/recipe/oauth/clients/remove`
+
+**Request Body:**
+```json
+{
+  "clientId": "my-oauth-client"
+}
+```
+
+### Authorization Flow
+
+#### Authorization Request
+
+Initiate the OAuth authorization flow.
+
+**API Endpoint:**
+
+**GET** `/recipe/oauth/auth`
+
+**Query Parameters:**
+- `client_id`: OAuth client identifier
+- `redirect_uri`: Callback URL
+- `response_type`: "code" for authorization code flow
+- `scope`: Requested scopes (space-separated)
+- `state`: CSRF protection token
+- `code_challenge`: PKCE challenge (optional)
+- `code_challenge_method`: "S256" for SHA-256 (optional)
+
+**Example:**
+```
+GET /recipe/oauth/auth?client_id=my-client&redirect_uri=https://app.com/callback&response_type=code&scope=openid%20email&state=random-state
+```
+
+#### Token Exchange
+
+Exchange authorization code for access tokens.
+
+Implemented in `io.supertokens.oauth.OAuth.doOAuthProxyFormPOST()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:114.
+
+**API Endpoint:**
+
+**POST** `/recipe/oauth/token`
+
+**Request Body (Authorization Code Grant):**
+```json
+{
+  "iss": "https://your-domain.com",
+  "inputBody": {
+    "grant_type": "authorization_code",
+    "code": "authorization-code",
+    "redirect_uri": "https://app.com/callback",
+    "client_id": "my-client",
+    "client_secret": "client-secret",
+    "code_verifier": "pkce-verifier"
+  },
+  "access_token": {
+    "custom_claim": "value"
+  },
+  "id_token": {
+    "custom_claim": "value"
+  },
+  "useStaticSigningKey": true
+}
+```
+
+**Response:**
+```json
+{
+  "access_token": "signed-jwt-access-token",
+  "id_token": "signed-jwt-id-token",
+  "refresh_token": "st_rt_xxx",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "openid email"
+}
+```
+
+**Request Body (Client Credentials Grant):**
+```json
+{
+  "iss": "https://your-domain.com",
+  "inputBody": {
+    "grant_type": "client_credentials",
+    "client_id": "my-client",
+    "client_secret": "client-secret",
+    "scope": "api:read"
+  },
+  "access_token": {},
+  "useStaticSigningKey": true
+}
+```
+
+**Request Body (Refresh Token Grant):**
+```json
+{
+  "iss": "https://your-domain.com",
+  "inputBody": {
+    "grant_type": "refresh_token",
+    "refresh_token": "st_rt_xxx",
+    "client_id": "my-client",
+    "client_secret": "client-secret"
+  },
+  "access_token": {},
+  "useStaticSigningKey": true
+}
+```
+
+### Token Management
+
+#### Token Introspection
+
+Validate and inspect access tokens.
+
+Implemented in `io.supertokens.oauth.OAuth.introspectAccessToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:510.
+
+**API Endpoint:**
+
+**POST** `/recipe/oauth/introspect`
+
+**Request Body:**
+```json
+{
+  "token": "access-token"
+}
+```
+
+**Response (Active Token):**
+```json
+{
+  "active": true,
+  "sub": "user-id",
+  "client_id": "my-client",
+  "token_type": "Bearer",
+  "token_use": "access_token",
+  "scope": "openid email",
+  "exp": 1234567890,
+  "iat": 1234567800,
+  "jti": "token-id",
+  "gid": "session-id"
+}
+```
+
+**Response (Revoked/Invalid Token):**
+```json
+{
+  "active": false
+}
+```
+
+#### Token Revocation
+
+Revoke access tokens, refresh tokens, or entire sessions.
+
+**Revoke Refresh Token:**
+
+Implemented in `io.supertokens.oauth.OAuth.revokeRefreshToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:545.
+
+**POST** `/recipe/oauth/tokens/revoke`
+```json
+{
+  "gid": "session-id"
+}
+```
+
+**Revoke Access Token:**
+
+Implemented in `io.supertokens.oauth.OAuth.revokeAccessToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:551.
+
+**POST** `/recipe/oauth/token/revoke`
+```json
+{
+  "token": "access-token"
+}
+```
+
+**Revoke Session:**
+
+Implemented in `io.supertokens.oauth.OAuth.revokeSessionHandle()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:567.
+
+**POST** `/recipe/oauth/session/revoke`
+```json
+{
+  "sessionHandle": "session-handle"
+}
+```
+
+**Revoke by Client ID:**
+
+Implemented in `io.supertokens.oauth.OAuth.revokeTokensForClientId()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:539.
+
+**POST** `/recipe/oauth/tokens/revoke`
+```json
+{
+  "clientId": "my-client"
+}
+```
+
+## Token Structure
+
+### Access Token
+
+Access tokens are signed JWTs with the following structure:
+
+**Header:**
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "key-id"
+}
+```
+
+**Payload:**
+```json
+{
+  "sub": "user-id",
+  "iss": "https://your-domain.com",
+  "aud": ["client-id"],
+  "exp": 1234567890,
+  "iat": 1234567800,
+  "jti": "unique-token-id",
+  "gid": "session-id",
+  "stt": 1,
+  "client_id": "my-client",
+  "scope": "openid email",
+  "custom_claim": "custom_value"
+}
+```
+
+**Claims:**
+- `sub`: Subject (user ID)
+- `iss`: Issuer (your domain)
+- `aud`: Audience (client IDs)
+- `exp`: Expiration time
+- `iat`: Issued at time
+- `jti`: JWT ID (unique token identifier)
+- `gid`: Group ID (session identifier)
+- `stt`: SuperTokens token type (1 = access token)
+- `client_id`: OAuth client ID
+- `scope`: Granted scopes
+
+### ID Token
+
+ID tokens are signed JWTs containing user identity information:
+
+**Payload:**
+```json
+{
+  "sub": "user-id",
+  "iss": "https://your-domain.com",
+  "aud": "client-id",
+  "exp": 1234567890,
+  "iat": 1234567800,
+  "auth_time": 1234567800,
+  "nonce": "request-nonce",
+  "at_hash": "access-token-hash",
+  "email": "user@example.com",
+  "email_verified": true,
+  "name": "John Doe"
+}
+```
+
+**Standard Claims:**
+- `sub`: Subject (user ID)
+- `iss`: Issuer
+- `aud`: Audience (client ID)
+- `exp`: Expiration
+- `iat`: Issued at
+- `auth_time`: Authentication time
+- `nonce`: Request nonce
+- `at_hash`: Access token hash (for implicit/hybrid flows)
+
+### Refresh Token
+
+Refresh tokens are opaque strings with the format:
+
+```
+st_rt_<random-string>
+```
+
+**Features:**
+- Long-lived (configurable)
+- One-time use (with rotation)
+- Mapped to internal Hydra tokens
+- Revocable by session or client
+
+## Token Signing
+
+### Static Signing Key
+
+Use a static RSA key for token signing:
+
+```json
+{
+  "useStaticSigningKey": true
+}
+```
+
+**Benefits:**
+- Consistent key ID
+- Simpler key management
+- Better caching
+
+### Dynamic Signing Key
+
+Use rotating keys for enhanced security:
+
+```json
+{
+  "useStaticSigningKey": false
+}
+```
+
+**Benefits:**
+- Key rotation
+- Compromised key isolation
+- Enhanced security
+
+## Client Secret Encryption
+
+Client secrets are encrypted at rest using AES-256-GCM.
+
+**Configuration:**
+```yaml
+oauth_client_secret_encryption_key: "base64-encoded-key"
+```
+
+**Implementation:**
+
+See `io.supertokens.oauth.OAuth.encryptClientSecret()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:368.
+
+## PKCE Support
+
+Proof Key for Code Exchange (PKCE) is supported for public clients.
+
+**Flow:**
+
+1. **Client generates code verifier:**
+```javascript
+const codeVerifier = generateRandomString(128);
+```
+
+2. **Client creates code challenge:**
+```javascript
+const codeChallenge = base64url(sha256(codeVerifier));
+```
+
+3. **Authorization request includes challenge:**
+```
+GET /recipe/oauth/auth?
+  client_id=my-client&
+  code_challenge=<challenge>&
+  code_challenge_method=S256
+```
+
+4. **Token request includes verifier:**
+```json
+{
+  "grant_type": "authorization_code",
+  "code": "auth-code",
+  "code_verifier": "<verifier>"
+}
+```
+
+## Logout Flow
+
+Implemented in `io.supertokens.oauth.OAuth.createLogoutRequestAndReturnRedirectUri()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:591.
+
+**Create Logout Request:**
+
+**POST** `/recipe/oauth/logout`
+
+**Request Body:**
+```json
+{
+  "clientId": "my-client",
+  "postLogoutRedirectionUri": "https://app.com/logged-out",
+  "sessionHandle": "session-handle",
+  "state": "random-state"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "redirectUri": "{apiDomain}/oauth/logout?logout_challenge=<challenge>"
+}
+```
+
+**Consume Logout Challenge:**
+
+Implemented in `io.supertokens.oauth.OAuth.consumeLogoutChallengeAndGetRedirectUri()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:609.
+
+## Configuration
+
+### OAuth Provider URLs
+
+```yaml
+# Hydra public service URL
+oauth_provider_public_service_url: http://localhost:4444
+
+# Hydra admin service URL  
+oauth_provider_admin_service_url: http://localhost:4445
+
+# Client secret encryption key (base64)
+oauth_client_secret_encryption_key: "your-encryption-key"
+```
+
+## Security Features
+
+### Token Revocation
+
+Tokens can be revoked:
+- By JTI (access token ID)
+- By GID (session ID)
+- By client ID
+- By session handle
+
+**Revocation Checking:**
+
+See `io.supertokens.oauth.OAuth.isTokenRevokedBasedOnPayload()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:498.
+
+### State Parameter
+
+Always validate state parameter to prevent CSRF:
+
+```javascript
+const state = generateRandomString();
+saveToSession(state);
+// Later verify
+if (receivedState !== savedState) {
+  throw new Error("Invalid state");
+}
+```
+
+### Redirect URI Validation
+
+Redirect URIs must:
+- Match exactly (no wildcards)
+- Be registered with the client
+- Use HTTPS in production
+
+## M2M Token Tracking
+
+Track machine-to-machine (client credentials) tokens for analytics.
+
+Implemented in `io.supertokens.oauth.OAuth.addM2MToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/oauth/OAuth.java:583.
+
+## Error Handling
+
+### OAuth Errors
+
+Implemented in `io.supertokens.oauth.exceptions.OAuthAPIException`.
+
+**Common Errors:**
+- `invalid_request`: Malformed request
+- `invalid_client`: Client authentication failed
+- `invalid_grant`: Invalid authorization code or refresh token
+- `unauthorized_client`: Client not authorized for grant type
+- `unsupported_grant_type`: Grant type not supported
+- `invalid_scope`: Requested scope is invalid
+- `access_denied`: User denied authorization
+
+## Best Practices
+
+1. **Use PKCE**: Always use PKCE for public clients
+2. **Rotate secrets**: Regularly rotate client secrets
+3. **Short-lived tokens**: Keep access tokens short-lived (15-60 minutes)
+4. **Refresh token rotation**: Enable rotation for security
+5. **Validate state**: Always validate state parameter
+6. **HTTPS only**: Never use OAuth over HTTP in production
+7. **Minimal scopes**: Request only necessary scopes
+8. **Revoke on logout**: Revoke tokens when user logs out
+9. **Monitor usage**: Track token usage for security
+10. **Encrypt secrets**: Store client secrets encrypted
+
+## Multi-Tenancy
+
+OAuth clients are tenant-specific:
+
+- Each tenant has isolated OAuth clients
+- Token validation respects tenant boundaries
+- Client IDs must be unique per tenant
+- Tokens include tenant context

@@ -1,0 +1,366 @@
+---
+title: 'Revoke Session'
+description: 'Revoke sessions by session handle or user ID'
+---
+
+## Endpoint
+
+```
+POST /recipe/session/remove
+```
+
+Revokes one or more sessions by either session handles or user ID. Used for logout operations and administrative session management.
+
+## Request Body
+
+<Note>
+  Provide **either** `userId` **or** `sessionHandles`, but not both.
+</Note>
+
+<ParamField body="userId" type="string">
+  Revoke all sessions for this user ID. Mutually exclusive with `sessionHandles`.
+</ParamField>
+
+<ParamField body="sessionHandles" type="string[]">
+  Array of session handles to revoke. Mutually exclusive with `userId`.
+  
+  Example:
+  ```json
+  ["session-handle-1", "session-handle-2"]
+  ```
+</ParamField>
+
+<ParamField body="revokeAcrossAllTenants" type="boolean">
+  When revoking by `userId`, whether to revoke sessions across all tenants. Only applicable when `userId` is provided.
+  
+  - `true` - Revoke sessions in all tenants (default)
+  - `false` - Revoke sessions only in the current tenant
+</ParamField>
+
+<ParamField body="revokeSessionsForLinkedAccounts" type="boolean">
+  When revoking by `userId`, whether to revoke sessions for all linked accounts. Only applicable when `userId` is provided.
+  
+  - `true` - Revoke sessions for all linked accounts (default)
+  - `false` - Revoke sessions only for the specified user ID
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Always returns `"OK"` on success.
+</ResponseField>
+
+<ResponseField name="sessionHandlesRevoked" type="string[]">
+  Array of session handles that were successfully revoked.
+  
+  Example:
+  ```json
+  ["session-handle-1", "session-handle-2"]
+  ```
+</ResponseField>
+
+## Example Requests
+
+### Revoke by Session Handles
+
+```bash
+curl -X POST https://your-domain.com/recipe/session/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionHandles": [
+      "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "f9e8d7c6-b5a4-3210-fedc-ba9876543210"
+    ]
+  }'
+```
+
+### Revoke All Sessions for User
+
+```bash
+curl -X POST https://your-domain.com/recipe/session/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "revokeAcrossAllTenants": true,
+    "revokeSessionsForLinkedAccounts": true
+  }'
+```
+
+### Revoke User Sessions in Current Tenant Only
+
+```bash
+curl -X POST https://your-domain.com/recipe/session/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "revokeAcrossAllTenants": false,
+    "revokeSessionsForLinkedAccounts": false
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "status": "OK",
+  "sessionHandlesRevoked": [
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "f9e8d7c6-b5a4-3210-fedc-ba9876543210"
+  ]
+}
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+Implemented in:
+- API Handler: `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/session/SessionRemoveAPI.java:63`
+- Session Logic: `/home/daytona/workspace/source/src/main/java/io/supertokens/session/Session.java:867`
+
+### Revocation Process
+
+#### Revoke by Session Handles
+
+1. **Extract Tenant IDs** - Parse tenant ID from each session handle
+2. **Group by Tenant** - Organize session handles by tenant
+3. **Revoke per Tenant** - Delete sessions in each tenant's storage
+4. **Aggregate Results** - Combine all revoked session handles
+
+#### Revoke by User ID
+
+1. **Resolve User Mapping** - Convert external user ID to internal if mapping exists
+2. **Determine Scope** - Check `revokeAcrossAllTenants` and `revokeSessionsForLinkedAccounts`
+3. **Find Sessions** - Query all non-expired session handles for the user
+4. **Include Linked Accounts** - Optionally include sessions for linked accounts
+5. **Revoke Sessions** - Delete all found session handles
+6. **Update Activity** - Record user activity timestamp
+
+### Multi-Tenant Handling
+
+Session handles encode tenant information:
+
+- **Default tenant**: `<uuid>`
+- **Named tenant**: `<uuid>_<tenantId>`
+
+When revoking by session handles, the system:
+1. Extracts tenant ID from each handle
+2. Loads appropriate tenant storage
+3. Deletes sessions in their respective tenants
+
+### Linked Accounts
+
+When `revokeSessionsForLinkedAccounts: true`, the system:
+
+1. Resolves the primary user for the given user ID
+2. Retrieves all linked login methods
+3. Revokes sessions for all linked user IDs
+
+This ensures account linking doesn't leave orphaned sessions.
+
+## Use Cases
+
+### User Logout
+
+```javascript
+// Logout single session
+async function logout(sessionHandle) {
+  const response = await fetch('https://your-domain.com/recipe/session/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionHandles: [sessionHandle]
+    })
+  });
+  
+  const data = await response.json();
+  
+  if (data.status === 'OK') {
+    // Clear client-side session data
+    localStorage.clear();
+    // Redirect to login
+    window.location.href = '/login';
+  }
+}
+```
+
+### Logout from All Devices
+
+```javascript
+// Revoke all sessions for the current user
+async function logoutAllDevices(userId) {
+  const response = await fetch('https://your-domain.com/recipe/session/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId,
+      revokeAcrossAllTenants: true,
+      revokeSessionsForLinkedAccounts: true
+    })
+  });
+  
+  const data = await response.json();
+  
+  if (data.status === 'OK') {
+    console.log(`Revoked ${data.sessionHandlesRevoked.length} sessions`);
+  }
+}
+```
+
+### Administrative Session Management
+
+```javascript
+// Admin endpoint to revoke user sessions
+async function adminRevokeUserSessions(userId, tenantId) {
+  const response = await fetch('https://your-domain.com/recipe/session/remove', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer admin-token'
+    },
+    body: JSON.stringify({
+      userId,
+      revokeAcrossAllTenants: false,  // Only in specific tenant
+      revokeSessionsForLinkedAccounts: false
+    })
+  });
+  
+  return await response.json();
+}
+```
+
+### Security Response
+
+```javascript
+// Revoke sessions after password change
+async function revokeSessionsAfterPasswordChange(userId, currentSessionHandle) {
+  const response = await fetch('https://your-domain.com/recipe/session/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId,
+      revokeAcrossAllTenants: true,
+      revokeSessionsForLinkedAccounts: true
+    })
+  });
+  
+  const data = await response.json();
+  
+  // All sessions revoked including current one
+  // User needs to log in again with new password
+  return data.sessionHandlesRevoked;
+}
+```
+
+## Security Considerations
+
+### Immediate Revocation
+
+<Warning>
+  **Access Token Validity**: Revoked sessions are immediately invalid when `checkDatabase: true` is used in verification. However, if verification uses `checkDatabase: false`, access tokens remain valid until expiry.
+</Warning>
+
+<Tip>
+  For sensitive operations requiring immediate revocation (password change, security breach), ensure your verification endpoints use `checkDatabase: true`.
+</Tip>
+
+### Revocation Scope
+
+<Note>
+  **Linked Accounts**: When using account linking, set `revokeSessionsForLinkedAccounts: true` to ensure all associated sessions are revoked.
+</Note>
+
+<Note>
+  **Multi-Tenant**: In multi-tenant setups, `revokeAcrossAllTenants: false` only revokes sessions in the request's tenant. Users may remain logged in on other tenants.
+</Note>
+
+### User ID Mapping
+
+The system automatically handles user ID mapping:
+
+- Accepts external user IDs
+- Resolves to internal SuperTokens user IDs
+- Revokes sessions associated with the internal ID
+- Updates activity tracking correctly
+
+## Best Practices
+
+1. **Always Revoke on Logout** - Prevent session reuse by revoking sessions when users log out
+2. **Revoke on Password Change** - Invalidate all sessions when users change passwords
+3. **Revoke on Security Events** - Immediately revoke sessions on suspicious activity
+4. **Use Linked Accounts Flag** - When revoking by user ID, consider linked accounts
+5. **Log Revocations** - Audit log all session revocations for security monitoring
+6. **Clear Client State** - Clear client-side tokens after successful revocation
+
+## Error Handling
+
+### Invalid Parameters
+
+The endpoint returns `400 Bad Request` if:
+
+- Both `userId` and `sessionHandles` are provided
+- Neither `userId` nor `sessionHandles` are provided
+- `revokeAcrossAllTenants` is used without `userId`
+- `revokeSessionsForLinkedAccounts` is used without `userId`
+- `sessionHandles` is an empty array
+
+### Partial Revocation
+
+When revoking multiple session handles:
+
+- Only valid, existing sessions are revoked
+- Invalid or non-existent session handles are silently ignored
+- Response includes only successfully revoked handles
+
+This allows safe cleanup without failing on already-revoked sessions.
+
+### Tenant Handling
+
+If a tenant is deleted after fetching session handles but before revocation:
+
+- The system silently skips sessions from deleted tenants
+- Other sessions are still revoked successfully
+- No error is returned
+
+## Response Interpretation
+
+### Empty Revocation List
+
+If `sessionHandlesRevoked` is empty:
+
+- **By Session Handles**: All provided handles were already revoked or invalid
+- **By User ID**: User has no active sessions
+
+This is not an error condition.
+
+### Partial Revocation
+
+If fewer handles are returned than requested:
+
+- Some session handles were already revoked
+- Some session handles didn't exist
+- Some sessions were in deleted tenants
+
+This is expected behavior for cleanup operations.
+
+## Performance Considerations
+
+### Revoke by User ID
+
+Revoking by user ID is a multi-step operation:
+
+1. Query all sessions for the user (potentially across multiple tenants)
+2. For linked accounts, query sessions for each linked user
+3. Delete all found sessions
+
+This can be expensive for users with many sessions or many linked accounts.
+
+### Revoke by Session Handles
+
+Revoking by session handles is more efficient:
+
+1. Direct deletion of specified sessions
+2. No queries needed to find sessions
+3. Scales linearly with number of handles
+
+Use session handles when known for better performance.

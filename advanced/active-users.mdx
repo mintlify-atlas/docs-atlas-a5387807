@@ -1,0 +1,563 @@
+---
+title: Active Users Tracking
+description: Track and count active users with automatic timestamp updates and flexible time-based queries
+---
+
+## Overview
+
+SuperTokens Core provides built-in active user tracking that automatically updates user activity timestamps and allows you to query active user counts for any time period.
+
+## Features
+
+<CardGroup cols={3}>
+  <Card title="Automatic Tracking" icon="clock">
+    Activity updated during session operations
+  </Card>
+  <Card title="Flexible Queries" icon="calendar">
+    Count users active in any time period
+  </Card>
+  <Card title="App-Level Storage" icon="layer-group">
+    Stored per app, not per tenant
+  </Card>
+</CardGroup>
+
+## How It Works
+
+### Automatic Updates
+
+Active user timestamps are automatically updated during:
+
+- **Session Creation**: When a user signs in
+- **Session Verification**: When an access token is verified
+- **Session Refresh**: When tokens are refreshed
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/ActiveUsers.java:15-22`:
+
+```java
+public static void updateLastActive(
+    AppIdentifier appIdentifier,
+    Main main,
+    String userId
+) {
+    Storage storage = StorageLayer.getStorage(
+        appIdentifier.getAsPublicTenantIdentifier(), main
+    );
+    
+    StorageUtils.getActiveUsersStorage(storage)
+        .updateLastActive(appIdentifier, userId);
+}
+```
+
+<Note>
+  Updates are fire-and-forget. Errors are silently ignored to prevent blocking session operations.
+</Note>
+
+## Counting Active Users
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/ActiveUsers.java:34-38`:
+
+```java
+public static int countUsersActiveSince(
+    Main main,
+    AppIdentifier appIdentifier,
+    long time  // Unix timestamp in milliseconds
+) {
+    Storage storage = StorageLayer.getStorage(
+        appIdentifier.getAsPublicTenantIdentifier(), main
+    );
+    
+    return StorageUtils.getActiveUsersStorage(storage)
+        .countUsersActiveSince(appIdentifier, time);
+}
+```
+
+### Example: Common Time Periods
+
+```java
+long now = System.currentTimeMillis();
+
+// Daily Active Users (DAU)
+long oneDayAgo = now - (24 * 60 * 60 * 1000);
+int dau = ActiveUsers.countUsersActiveSince(
+    main, appIdentifier, oneDayAgo
+);
+System.out.println("Daily Active Users: " + dau);
+
+// Weekly Active Users (WAU)
+long oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
+int wau = ActiveUsers.countUsersActiveSince(
+    main, appIdentifier, oneWeekAgo
+);
+System.out.println("Weekly Active Users: " + wau);
+
+// Monthly Active Users (MAU)
+long oneMonthAgo = now - (30L * 24 * 60 * 60 * 1000);
+int mau = ActiveUsers.countUsersActiveSince(
+    main, appIdentifier, oneMonthAgo
+);
+System.out.println("Monthly Active Users: " + mau);
+```
+
+## Manual Updates
+
+While updates are automatic during session operations, you can manually update activity:
+
+```java
+ActiveUsers.updateLastActive(
+    appIdentifier,
+    main,
+    userId
+);
+```
+
+### Use Cases for Manual Updates
+
+- API requests that don't create/verify sessions
+- Background jobs or scheduled tasks
+- Mobile app foreground/background transitions
+- WebSocket connections
+- Server-to-server authentication
+
+## Account Linking Behavior
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/ActiveUsers.java:40-53`:
+
+When accounts are linked, activity is consolidated:
+
+```java
+public static void updateLastActiveAfterLinking(
+    Main main,
+    AppIdentifier appIdentifier,
+    String primaryUserId,
+    String recipeUserId
+) {
+    ActiveUsersSQLStorage activeUsersStorage = 
+        StorageUtils.getActiveUsersStorage(
+            StorageLayer.getStorage(
+                appIdentifier.getAsPublicTenantIdentifier(), main
+            )
+        );
+    
+    // Delete activity for recipe user
+    activeUsersStorage.startTransaction(con -> {
+        activeUsersStorage.deleteUserActive_Transaction(
+            con, appIdentifier, recipeUserId
+        );
+        return null;
+    });
+    
+    // Update activity for primary user
+    updateLastActive(appIdentifier, main, primaryUserId);
+}
+```
+
+<Note>
+  When accounts are linked, the recipe user's activity record is deleted and the primary user's activity is updated. This prevents double-counting.
+</Note>
+
+## Storage Scope
+
+<Warning>
+  Active users are tracked at the **app level**, not per tenant. The count includes all users active in any tenant within the app.
+</Warning>
+
+Active user data is stored in the public tenant storage:
+
+```java
+Storage storage = StorageLayer.getStorage(
+    appIdentifier.getAsPublicTenantIdentifier(), // Always public tenant
+    main
+);
+```
+
+## Building Analytics Dashboard
+
+### Complete Analytics Example
+
+```java
+public class UserAnalytics {
+    private final Main main;
+    private final AppIdentifier appIdentifier;
+    
+    public UserAnalytics(Main main, AppIdentifier appIdentifier) {
+        this.main = main;
+        this.appIdentifier = appIdentifier;
+    }
+    
+    public Map<String, Integer> getActiveUserMetrics() 
+            throws StorageQueryException, TenantOrAppNotFoundException {
+        long now = System.currentTimeMillis();
+        Map<String, Integer> metrics = new HashMap<>();
+        
+        // Hour
+        long oneHourAgo = now - (60 * 60 * 1000);
+        metrics.put("activeLastHour", 
+            ActiveUsers.countUsersActiveSince(main, appIdentifier, oneHourAgo)
+        );
+        
+        // Day
+        long oneDayAgo = now - (24 * 60 * 60 * 1000);
+        metrics.put("activeLastDay", 
+            ActiveUsers.countUsersActiveSince(main, appIdentifier, oneDayAgo)
+        );
+        
+        // Week
+        long oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
+        metrics.put("activeLastWeek", 
+            ActiveUsers.countUsersActiveSince(main, appIdentifier, oneWeekAgo)
+        );
+        
+        // Month
+        long oneMonthAgo = now - (30L * 24 * 60 * 60 * 1000);
+        metrics.put("activeLastMonth", 
+            ActiveUsers.countUsersActiveSince(main, appIdentifier, oneMonthAgo)
+        );
+        
+        // 3 Months
+        long threeMonthsAgo = now - (90L * 24 * 60 * 60 * 1000);
+        metrics.put("activeLast3Months", 
+            ActiveUsers.countUsersActiveSince(main, appIdentifier, threeMonthsAgo)
+        );
+        
+        // 6 Months
+        long sixMonthsAgo = now - (180L * 24 * 60 * 60 * 1000);
+        metrics.put("activeLast6Months", 
+            ActiveUsers.countUsersActiveSince(main, appIdentifier, sixMonthsAgo)
+        );
+        
+        // Year
+        long oneYearAgo = now - (365L * 24 * 60 * 60 * 1000);
+        metrics.put("activeLastYear", 
+            ActiveUsers.countUsersActiveSince(main, appIdentifier, oneYearAgo)
+        );
+        
+        return metrics;
+    }
+    
+    public Map<String, Object> getEngagementMetrics() 
+            throws StorageQueryException, TenantOrAppNotFoundException {
+        long now = System.currentTimeMillis();
+        Map<String, Object> engagement = new HashMap<>();
+        
+        int dau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (24 * 60 * 60 * 1000)
+        );
+        
+        int wau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (7 * 24 * 60 * 60 * 1000)
+        );
+        
+        int mau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (30L * 24 * 60 * 60 * 1000)
+        );
+        
+        engagement.put("dau", dau);
+        engagement.put("wau", wau);
+        engagement.put("mau", mau);
+        
+        // Calculate engagement ratios
+        if (wau > 0) {
+            engagement.put("dauWauRatio", (double) dau / wau);
+        }
+        
+        if (mau > 0) {
+            engagement.put("dauMauRatio", (double) dau / mau);
+            engagement.put("wauMauRatio", (double) wau / mau);
+        }
+        
+        // Stickiness = DAU / MAU (how often users return)
+        if (mau > 0) {
+            double stickiness = ((double) dau / mau) * 100;
+            engagement.put("stickinessPercent", 
+                Math.round(stickiness * 100.0) / 100.0
+            );
+        }
+        
+        return engagement;
+    }
+}
+
+// Usage
+UserAnalytics analytics = new UserAnalytics(main, appIdentifier);
+
+Map<String, Integer> metrics = analytics.getActiveUserMetrics();
+System.out.println("Active Users Metrics:");
+for (Map.Entry<String, Integer> entry : metrics.entrySet()) {
+    System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+}
+
+Map<String, Object> engagement = analytics.getEngagementMetrics();
+System.out.println("\nEngagement Metrics:");
+for (Map.Entry<String, Object> entry : engagement.entrySet()) {
+    System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+}
+```
+
+### Example Output
+
+```
+Active Users Metrics:
+  activeLastHour: 45
+  activeLastDay: 523
+  activeLastWeek: 1834
+  activeLastMonth: 5621
+  activeLast3Months: 12456
+  activeLast6Months: 18923
+  activeLastYear: 25678
+
+Engagement Metrics:
+  dau: 523
+  wau: 1834
+  mau: 5621
+  dauWauRatio: 0.285
+  dauMauRatio: 0.093
+  wauMauRatio: 0.326
+  stickinessPercent: 9.3
+```
+
+## Time-Based Cohort Analysis
+
+```java
+public class CohortAnalysis {
+    public Map<String, Integer> analyzeRetention(
+            Main main, 
+            AppIdentifier appIdentifier,
+            int days
+    ) throws StorageQueryException, TenantOrAppNotFoundException {
+        long now = System.currentTimeMillis();
+        long oneDayMs = 24 * 60 * 60 * 1000;
+        Map<String, Integer> retention = new LinkedHashMap<>();
+        
+        for (int i = 0; i < days; i++) {
+            long daysAgo = now - (i * oneDayMs);
+            int activeCount = ActiveUsers.countUsersActiveSince(
+                main, appIdentifier, daysAgo
+            );
+            retention.put("day" + i, activeCount);
+        }
+        
+        return retention;
+    }
+}
+
+// Usage: Analyze 30-day retention
+CohortAnalysis cohort = new CohortAnalysis();
+Map<String, Integer> retention = cohort.analyzeRetention(
+    main, appIdentifier, 30
+);
+
+System.out.println("30-Day Retention:");
+for (Map.Entry<String, Integer> entry : retention.entrySet()) {
+    System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+}
+```
+
+## Performance Considerations
+
+### Database Indexing
+
+Active users table should have an index on:
+- `app_id` + `last_active_time` for fast range queries
+- `user_id` for efficient updates
+
+### Caching Strategy
+
+For high-traffic applications, cache active user counts:
+
+```java
+public class CachedActiveUsers {
+    private final Cache<String, Integer> cache;
+    private final Main main;
+    private final AppIdentifier appIdentifier;
+    
+    public CachedActiveUsers(
+            Main main, 
+            AppIdentifier appIdentifier,
+            int cacheTTLMinutes
+    ) {
+        this.main = main;
+        this.appIdentifier = appIdentifier;
+        this.cache = CacheBuilder.newBuilder()
+            .expireAfterWrite(cacheTTLMinutes, TimeUnit.MINUTES)
+            .build();
+    }
+    
+    public int getDAU() throws Exception {
+        return cache.get("dau", () -> {
+            long oneDayAgo = System.currentTimeMillis() - 
+                (24 * 60 * 60 * 1000);
+            return ActiveUsers.countUsersActiveSince(
+                main, appIdentifier, oneDayAgo
+            );
+        });
+    }
+    
+    public int getMAU() throws Exception {
+        return cache.get("mau", () -> {
+            long oneMonthAgo = System.currentTimeMillis() - 
+                (30L * 24 * 60 * 60 * 1000);
+            return ActiveUsers.countUsersActiveSince(
+                main, appIdentifier, oneMonthAgo
+            );
+        });
+    }
+    
+    public void invalidateCache() {
+        cache.invalidateAll();
+    }
+}
+
+// Usage with 5-minute cache
+CachedActiveUsers cachedUsers = new CachedActiveUsers(
+    main, appIdentifier, 5
+);
+
+int dau = cachedUsers.getDAU();
+int mau = cachedUsers.getMAU();
+```
+
+## Common Metrics
+
+### Key Performance Indicators
+
+<CardGroup cols={2}>
+  <Card title="DAU/MAU Ratio" icon="chart-line">
+    **Stickiness**: Measures how often users return. Higher is better.
+    
+    Formula: `(DAU / MAU) × 100%`
+    
+    Good: >20%
+  </Card>
+  
+  <Card title="DAU/WAU Ratio" icon="calendar-week">
+    **Weekly Engagement**: How active users are within a week.
+    
+    Formula: `(DAU / WAU) × 100%`
+    
+    Good: >40%
+  </Card>
+  
+  <Card title="WAU/MAU Ratio" icon="calendar">
+    **Monthly Engagement**: Weekly activity relative to monthly users.
+    
+    Formula: `(WAU / MAU) × 100%`
+    
+    Good: >50%
+  </Card>
+  
+  <Card title="User Growth" icon="arrow-trend-up">
+    **Growth Rate**: Change in active users over time.
+    
+    Formula: `((Current MAU - Previous MAU) / Previous MAU) × 100%`
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Steps>
+  <Step title="Don't Query Too Frequently">
+    Cache results for at least 5-15 minutes to reduce database load
+  </Step>
+  
+  <Step title="Use Appropriate Time Windows">
+    Match time windows to your product's usage patterns (daily app vs. weekly app)
+  </Step>
+  
+  <Step title="Track Trends Over Time">
+    Store historical counts to analyze growth trends
+  </Step>
+  
+  <Step title="Segment by Cohort">
+    Combine with user metadata to analyze different user segments
+  </Step>
+  
+  <Step title="Monitor Database Performance">
+    Ensure active users table has proper indexes
+  </Step>
+</Steps>
+
+## Limitations
+
+<Warning>
+  Active user tracking has some limitations:
+  
+  - **App-level only**: Cannot query per-tenant active users directly
+  - **No deduplication across time**: A user active on Day 1 and Day 7 counts twice in a 7-day count
+  - **Update failures silenced**: Errors are ignored to prevent blocking session operations
+</Warning>
+
+## Historical Data Storage
+
+For long-term analytics, periodically snapshot counts:
+
+```java
+public class ActiveUserSnapshot {
+    public void snapshotDailyMetrics(
+            Main main,
+            AppIdentifier appIdentifier
+    ) throws Exception {
+        long now = System.currentTimeMillis();
+        
+        // Calculate metrics
+        int dau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (24 * 60 * 60 * 1000)
+        );
+        
+        int wau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (7 * 24 * 60 * 60 * 1000)
+        );
+        
+        int mau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (30L * 24 * 60 * 60 * 1000)
+        );
+        
+        // Store in your analytics database
+        AnalyticsDB.insertSnapshot(
+            appIdentifier.getAppId(),
+            now,
+            dau,
+            wau,
+            mau
+        );
+    }
+}
+
+// Run daily via cron job
+ActiveUserSnapshot snapshot = new ActiveUserSnapshot();
+snapshot.snapshotDailyMetrics(main, appIdentifier);
+```
+
+## Integration with Monitoring
+
+```java
+// Expose metrics to Prometheus/Grafana
+public class ActiveUsersMetricsExporter {
+    public void exportMetrics(
+            Main main,
+            AppIdentifier appIdentifier
+    ) throws Exception {
+        long now = System.currentTimeMillis();
+        
+        int dau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (24 * 60 * 60 * 1000)
+        );
+        
+        int mau = ActiveUsers.countUsersActiveSince(
+            main, appIdentifier, now - (30L * 24 * 60 * 60 * 1000)
+        );
+        
+        // Export to monitoring system
+        MetricsRegistry.gauge("active_users_daily", dau);
+        MetricsRegistry.gauge("active_users_monthly", mau);
+        MetricsRegistry.gauge("stickiness_percent", 
+            mau > 0 ? (double) dau / mau * 100 : 0
+        );
+    }
+}
+```
+
+## Related Topics
+
+- [User Management](/concepts/user-management)
+- [Session Management](/concepts/sessions)
+- [Multi-Tenancy](/concepts/multitenancy)

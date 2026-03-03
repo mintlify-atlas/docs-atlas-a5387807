@@ -1,0 +1,147 @@
+---
+title: 'Session Management API'
+description: 'Overview of session lifecycle, token structure, and session management endpoints'
+---
+
+## Overview
+
+The Session Management API provides endpoints for creating, verifying, refreshing, and revoking user sessions in SuperTokens Core. Sessions are managed using JWT-based access tokens and opaque refresh tokens with built-in security features.
+
+## Session Lifecycle
+
+A typical session lifecycle follows these stages:
+
+1. **Creation** - Create a new session when a user authenticates
+2. **Verification** - Verify the access token on each API request
+3. **Refresh** - Exchange the refresh token for new tokens when access token expires
+4. **Revocation** - Remove sessions when users log out or sessions need to be invalidated
+
+## Token Structure
+
+### Access Token
+
+Access tokens are JWTs that contain:
+
+- **Session Handle** - Unique identifier for the session
+- **User ID** - The primary user identifier
+- **Recipe User ID** - User ID specific to the authentication recipe
+- **Custom Payload** - User-defined data in JWT (`userDataInJWT`)
+- **Refresh Token Hash** - Hash of the associated refresh token
+- **Anti-CSRF Token** - Optional CSRF protection token
+- **Expiry Time** - Token expiration timestamp
+
+Access tokens are short-lived (typically 1 hour) and should be verified on each API request.
+
+### Refresh Token
+
+Refresh tokens are opaque tokens that:
+
+- Are long-lived (typically 100 days)
+- Can only be used to obtain new access and refresh tokens
+- Support token rotation for enhanced security
+- Include parent token hash for theft detection
+- Are stored in the database with hash verification
+
+### Session Handle
+
+Session handles uniquely identify sessions and encode tenant information:
+
+```
+<uuid>_<tenantId>
+```
+
+For the default tenant, only the UUID is used.
+
+## Security Features
+
+### Anti-CSRF Protection
+
+When enabled, sessions include anti-CSRF tokens that must be validated on requests that modify data. The `enableAntiCsrf` parameter controls this feature.
+
+### Token Theft Detection
+
+Refresh token rotation with parent token tracking enables detection of token theft. If a refresh token is reused after a new one has been issued, all sessions for that user are revoked.
+
+### Signing Key Rotation
+
+Access tokens can be signed with either:
+
+- **Dynamic keys** - Rotated periodically for enhanced security (default)
+- **Static keys** - Fixed key for simplified verification
+
+The `useDynamicSigningKey` parameter controls this behavior.
+
+### Token Blacklisting
+
+When `checkDatabase` is enabled during verification, sessions can be revoked immediately by removing them from the database, even if the access token hasn't expired.
+
+## Multi-Tenancy Support
+
+All session endpoints support multi-tenancy:
+
+- Tenant ID is encoded in session handles
+- Sessions are scoped to specific tenants
+- Cross-tenant session operations require appropriate permissions
+
+## API Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Create Session" icon="plus" href="/api/session/create">
+    Create a new session for a user
+  </Card>
+  <Card title="Verify Session" icon="check" href="/api/session/verify">
+    Verify an access token and get session data
+  </Card>
+  <Card title="Refresh Session" icon="rotate" href="/api/session/refresh">
+    Refresh tokens to extend a session
+  </Card>
+  <Card title="Revoke Session" icon="trash" href="/api/session/revoke">
+    Revoke sessions by handle or user ID
+  </Card>
+</CardGroup>
+
+## Common Response Fields
+
+Most session operations return a `SessionInformationHolder` object containing:
+
+```json
+{
+  "status": "OK",
+  "session": {
+    "handle": "string",
+    "userId": "string",
+    "recipeUserId": "string",
+    "userDataInJWT": {},
+    "tenantId": "string"
+  },
+  "accessToken": {
+    "token": "string",
+    "expiry": 1234567890,
+    "createdTime": 1234567890
+  },
+  "refreshToken": {
+    "token": "string",
+    "expiry": 1234567890,
+    "createdTime": 1234567890
+  },
+  "antiCsrfToken": "string"
+}
+```
+
+## Error Handling
+
+Session APIs return these status codes:
+
+- `OK` - Operation successful
+- `UNAUTHORISED` - Invalid or expired token, session not found
+- `TRY_REFRESH_TOKEN` - Access token expired, client should refresh
+- `TOKEN_THEFT_DETECTED` - Refresh token reuse detected, session revoked
+
+## Best Practices
+
+1. **Always use HTTPS** - Protect tokens in transit
+2. **Enable anti-CSRF** - For browser-based applications
+3. **Check database selectively** - Balance security and performance
+4. **Handle token refresh** - Implement automatic refresh token rotation
+5. **Revoke on logout** - Always revoke sessions when users log out
+6. **Monitor for theft** - Log and alert on TOKEN_THEFT_DETECTED responses

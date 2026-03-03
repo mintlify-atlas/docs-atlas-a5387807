@@ -1,0 +1,524 @@
+---
+title: Multi-Factor Authentication (MFA)
+description: Add an extra layer of security with TOTP-based MFA
+---
+
+## Overview
+
+Multi-Factor Authentication (MFA) adds an additional layer of security by requiring users to provide a second form of authentication beyond their password. SuperTokens Core implements Time-based One-Time Password (TOTP) for MFA, compatible with authenticator apps like Google Authenticator, Authy, and Microsoft Authenticator.
+
+## TOTP Implementation
+
+TOTP is implemented in `io.supertokens.totp.Totp` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java.
+
+**Standard:** RFC 6238 (TOTP: Time-Based One-Time Password Algorithm)
+
+**Algorithm:** HMAC-SHA1 with 6-digit codes
+
+## Device Registration
+
+Users can register multiple TOTP devices (e.g., multiple phones, backup devices).
+
+### Register Device
+
+Create a new TOTP device for a user.
+
+Implemented in `io.supertokens.totp.Totp.registerDevice()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:170.
+
+**Process:**
+1. Generate a random 160-bit secret key
+2. Base32 encode the secret
+3. Create device record (unverified)
+4. Return secret for QR code generation
+
+**API Endpoint:**
+
+**POST** `/recipe/totp/device`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "deviceName": "My Phone",
+  "skew": 1,
+  "period": 30
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "deviceName": "My Phone",
+  "secret": "JBSWY3DPEHPK3PXP",
+  "qrCodeString": "otpauth://totp/MyApp:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=MyApp"
+}
+```
+
+### Secret Key Generation
+
+Implemented in `io.supertokens.totp.Totp.generateSecret()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:42.
+
+```java
+private static String generateSecret() {
+    KeyGenerator keyGenerator = KeyGenerator.getInstance("HmacSHA1");
+    keyGenerator.init(160); // 160 bits = 20 bytes
+    return new Base32().encodeToString(keyGenerator.generateKey().getEncoded());
+}
+```
+
+### QR Code Format
+
+TOTP URIs follow the Google Authenticator format:
+
+```
+otpauth://totp/{Issuer}:{AccountName}?secret={Secret}&issuer={Issuer}&period={Period}&digits=6&algorithm=SHA1
+```
+
+**Example:**
+```
+otpauth://totp/MyApp:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=MyApp&period=30&digits=6&algorithm=SHA1
+```
+
+## Device Verification
+
+Devices must be verified before they can be used for authentication.
+
+### Verify Device
+
+Verify a device by validating a TOTP code.
+
+Implemented in `io.supertokens.totp.Totp.verifyDevice()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:372.
+
+**Process:**
+1. Check if device exists and is unverified
+2. Validate TOTP code against device secret
+3. Check rate limiting
+4. Mark device as verified
+5. Return verification status
+
+**API Endpoint:**
+
+**POST** `/recipe/totp/device/verify`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "deviceName": "My Phone",
+  "totp": "123456"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "status": "OK",
+  "wasAlreadyVerified": false
+}
+```
+
+**Response (Invalid Code):**
+```json
+{
+  "status": "INVALID_TOTP_ERROR",
+  "currentNumberOfFailedAttempts": 2,
+  "maxNumberOfFailedAttempts": 5
+}
+```
+
+## TOTP Verification
+
+Verify TOTP codes during login or sensitive operations.
+
+### Verify Code
+
+Implemented in `io.supertokens.totp.Totp.verifyCode()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:438.
+
+**Validation Process:**
+1. Retrieve all verified devices for user
+2. Check each device with time skew
+3. Prevent code replay attacks
+4. Enforce rate limiting
+5. Store used code with expiry
+
+**API Endpoint:**
+
+**POST** `/recipe/totp/verify`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "totp": "123456"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "status": "OK"
+}
+```
+
+**Response (Invalid):**
+```json
+{
+  "status": "INVALID_TOTP_ERROR",
+  "currentNumberOfFailedAttempts": 3,
+  "maxNumberOfFailedAttempts": 5
+}
+```
+
+**Response (Rate Limited):**
+```json
+{
+  "status": "LIMIT_REACHED_ERROR",
+  "retryAfterMs": 300000,
+  "currentNumberOfFailedAttempts": 5,
+  "maxNumberOfFailedAttempts": 5
+}
+```
+
+### Code Verification Algorithm
+
+Implemented in `io.supertokens.totp.Totp.checkCode()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:52.
+
+```java
+private static boolean checkCode(TOTPDevice device, String code) {
+    TimeBasedOneTimePasswordGenerator totp = 
+        new TimeBasedOneTimePasswordGenerator(Duration.ofSeconds(device.period), 6);
+    
+    byte[] keyBytes = new Base32().decode(device.secretKey);
+    Key key = new SecretKeySpec(keyBytes, "HmacSHA1");
+    
+    // Check code with time skew
+    for (int i = -device.skew; i <= device.skew; i++) {
+        String expectedCode = totp.generateOneTimePasswordString(
+            key, 
+            Instant.now().plusSeconds(i * device.period)
+        );
+        if (expectedCode.equals(code)) {
+            return true;
+        }
+    }
+    return false;
+}
+```
+
+**Time Skew:**
+- Default: ±1 period (30 seconds before/after)
+- Allows for clock drift between client and server
+- Configurable per device
+
+## Rate Limiting
+
+Protect against brute force attacks with sophisticated rate limiting.
+
+Implemented in `io.supertokens.totp.Totp.checkAndStoreCode()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:181.
+
+**Algorithm:**
+1. Fetch all recent code attempts (valid and invalid)
+2. Count consecutive invalid attempts
+3. If max attempts reached, calculate cooldown time
+4. Block further attempts until cooldown expires
+
+**Configuration:**
+```yaml
+# Maximum failed attempts before rate limiting
+totp_max_attempts: 5
+
+# Cooldown period after max attempts (in seconds)
+totp_rate_limit_cooldown_time: 900  # 15 minutes
+```
+
+**Rate Limit Logic:**
+```
+if (invalidAttempts >= maxAttempts) {
+    timeSinceLastInvalid = now - lastInvalidAttemptTime;
+    if (timeSinceLastInvalid < cooldownTime) {
+        timeLeft = cooldownTime - timeSinceLastInvalid;
+        throw LimitReachedException(timeLeft);
+    }
+}
+```
+
+## Replay Attack Prevention
+
+Prevent the same code from being used multiple times.
+
+**Implementation:**
+1. Store each used code with expiry time
+2. Check if code was previously used
+3. Reject code if still valid and previously used
+4. Expiry time = device.period × (2 × device.skew + 1)
+
+**Example:**
+- Period: 30 seconds
+- Skew: 1
+- Expiry: 30 × (2 × 1 + 1) = 90 seconds
+
+**Code Storage:**
+```java
+TOTPUsedCode usedCode = new TOTPUsedCode(
+    userId,
+    code,
+    isValid,
+    now + (expireInSec * 1000),
+    now
+);
+totpStorage.insertUsedCode(tenantIdentifier, usedCode);
+```
+
+## Device Management
+
+### List Devices
+
+Retrieve all TOTP devices for a user.
+
+Implemented in `io.supertokens.totp.Totp.getDevices()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:550.
+
+**API Endpoint:**
+
+**GET** `/recipe/totp/device/list?userId={userId}`
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "devices": [
+    {
+      "deviceName": "My Phone",
+      "period": 30,
+      "skew": 1,
+      "verified": true
+    },
+    {
+      "deviceName": "Backup Device",
+      "period": 30,
+      "skew": 1,
+      "verified": false
+    }
+  ]
+}
+```
+
+### Remove Device
+
+Delete a TOTP device.
+
+Implemented in `io.supertokens.totp.Totp.removeDevice()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:485.
+
+**API Endpoint:**
+
+**POST** `/recipe/totp/device/remove`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "deviceName": "My Phone"
+}
+```
+
+**Process:**
+1. Delete specified device
+2. If last device, delete user from TOTP system
+3. Return success
+
+### Update Device Name
+
+Rename a TOTP device.
+
+Implemented in `io.supertokens.totp.Totp.updateDeviceName()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:531.
+
+**API Endpoint:**
+
+**PUT** `/recipe/totp/device`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "existingDeviceName": "My Phone",
+  "newDeviceName": "iPhone 13"
+}
+```
+
+## Bulk Device Status
+
+Check TOTP status for multiple users in a single query.
+
+Implemented in `io.supertokens.totp.Totp.getBulkDeviceStatus()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:565.
+
+**API Endpoint:**
+
+**POST** `/recipe/totp/device/status/bulk`
+
+**Request Body:**
+```json
+{
+  "userIds": ["user-1", "user-2", "user-3"]
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "users": {
+    "user-1": true,     // Has verified device
+    "user-2": false,    // Has unverified device only
+    "user-3": null      // No TOTP devices
+  }
+}
+```
+
+**Return Values:**
+- `true`: User has at least one verified TOTP device
+- `false`: User has devices but none are verified
+- `null`: User has no TOTP devices
+
+## Import Devices
+
+Import TOTP devices from other systems.
+
+Implemented in `io.supertokens.totp.Totp.createDevices()` at /home/daytona/workspace/source/src/main/java/io/supertokens/totp/Totp.java:150.
+
+**API Endpoint:**
+
+**POST** `/recipe/totp/device/import`
+
+**Request Body:**
+```json
+{
+  "devices": [
+    {
+      "userId": "user-id",
+      "deviceName": "Imported Device",
+      "secretKey": "JBSWY3DPEHPK3PXP",
+      "period": 30,
+      "skew": 1,
+      "verified": true,
+      "createdAt": 1234567890
+    }
+  ]
+}
+```
+
+## Configuration
+
+### TOTP Settings
+
+```yaml
+# Maximum failed verification attempts
+totp_max_attempts: 5
+
+# Rate limit cooldown in seconds (15 minutes)
+totp_rate_limit_cooldown_time: 900
+```
+
+### Device Parameters
+
+**Period:**
+- Default: 30 seconds
+- Standard: 30 seconds (most compatible)
+- Range: 1-300 seconds
+
+**Skew:**
+- Default: 1 (±30 seconds)
+- Recommended: 1-2
+- Higher values = more tolerance, less security
+
+**Digits:**
+- Fixed: 6 digits
+- Standard for maximum compatibility
+
+## Security Considerations
+
+### Secret Storage
+
+- Secrets are stored in plaintext in the database
+- Protect database access with encryption at rest
+- Consider application-level encryption for secrets
+
+### Clock Synchronization
+
+- Server time must be accurate (use NTP)
+- Skew parameter allows for minor drift
+- Monitor server time drift
+
+### Backup Codes
+
+- Not implemented in core TOTP module
+- Implement at application layer
+- Store hashed like passwords
+
+### Recovery
+
+- Require email/SMS verification for MFA reset
+- Log all MFA changes
+- Notify users of MFA changes
+
+## Best Practices
+
+1. **Require MFA for sensitive operations**: Not just login
+2. **Allow multiple devices**: Users need backup devices
+3. **Clear device names**: Help users identify their devices
+4. **Verify immediately**: Prompt users to verify after registration
+5. **Provide QR codes**: Easier than manual entry
+6. **Show recovery options**: Before users lose access
+7. **Rate limiting**: Prevent brute force attacks
+8. **Audit logs**: Track MFA changes and usage
+9. **User education**: Explain MFA benefits and usage
+10. **Test thoroughly**: Especially time-sensitive code validation
+
+## Common Issues
+
+### Time Synchronization
+
+**Problem:** Codes are always invalid
+
+**Solution:**
+- Check server time with NTP
+- Increase skew parameter temporarily
+- Verify client device time
+
+### Code Already Used
+
+**Problem:** Valid code rejected as used
+
+**Solution:**
+- This is intentional (replay prevention)
+- Wait 30 seconds for new code
+- Increase period if users frequently retry
+
+### Rate Limiting
+
+**Problem:** Users locked out after failed attempts
+
+**Solution:**
+- Provide clear error messages with retry time
+- Implement MFA recovery flow
+- Consider adjusting max attempts or cooldown
+
+## Multi-Tenancy
+
+TOTP devices are tenant-specific:
+
+- Users in different tenants have separate devices
+- Rate limiting is per-tenant
+- Configuration can vary by tenant
+
+## Feature Flag
+
+MFA requires the enterprise license:
+
+```java
+Mfa.checkForMFAFeature(appIdentifier, main);
+```
+
+**Error if not enabled:**
+```
+FeatureNotEnabledException: MFA feature is not enabled
+```

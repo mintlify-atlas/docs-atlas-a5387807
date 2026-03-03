@@ -1,0 +1,74 @@
+---
+title: TOTP/MFA API Overview
+description: Manage time-based one-time password (TOTP) devices for multi-factor authentication
+---
+
+The TOTP API enables multi-factor authentication (MFA) using time-based one-time passwords. Users can register multiple TOTP devices (e.g., authenticator apps) and use them to verify their identity.
+
+## Key Concepts
+
+- **TOTP Device**: A registered authenticator (e.g., Google Authenticator, Authy) that generates time-based codes
+- **Device Verification**: New devices must be verified with a valid TOTP code before they can be used for authentication
+- **Code Verification**: After device verification, TOTP codes can be used to authenticate users
+- **Rate Limiting**: Failed verification attempts are tracked and limited to prevent brute force attacks
+
+## Device Lifecycle
+
+1. **Create Device** - Register a new TOTP device and receive a secret key
+2. **Verify Device** - Confirm the device works by providing a valid TOTP code
+3. **Use Device** - Verify TOTP codes during authentication
+4. **Manage Devices** - List, update, or remove devices
+
+## Available Endpoints
+
+### Device Management
+
+- `POST /recipe/totp/device` - Create a new TOTP device
+- `PUT /recipe/totp/device` - Update (rename) an existing device
+- `GET /recipe/totp/device/list` - Get all devices for a user
+- `DELETE /recipe/totp/device` - Remove a TOTP device
+- `POST /recipe/totp/device/import` - Import an existing TOTP device
+
+### Verification
+
+- `POST /recipe/totp/device/verify` - Verify a newly created device
+- `POST /recipe/totp/verify` - Verify a TOTP code for authentication
+
+## Response Format
+
+All endpoints return JSON responses with a `status` field. Common status values:
+
+- `OK` - Request succeeded
+- `UNKNOWN_DEVICE_ERROR` - The specified device does not exist
+- `UNKNOWN_USER_ID_ERROR` - No TOTP devices found for the user
+- `INVALID_TOTP_ERROR` - The provided TOTP code is incorrect
+- `LIMIT_REACHED_ERROR` - Too many failed attempts, retry after the specified time
+- `DEVICE_ALREADY_EXISTS_ERROR` - A device with that name already exists
+
+## Security Features
+
+### Rate Limiting
+
+TOTP verification includes built-in rate limiting:
+- Failed attempts are tracked per user
+- After reaching the maximum number of failed attempts, users must wait before retrying
+- The `LIMIT_REACHED_ERROR` response includes `retryAfterMs` indicating when to retry
+
+### Device Parameters
+
+- **Skew**: Number of time windows to check (default: 1)
+- **Period**: Time window duration in seconds (default: 30)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create TOTP Device" href="/api/totp/create-device">
+    Register a new authenticator device
+  </Card>
+  <Card title="Verify Device" href="/api/totp/verify-device">
+    Verify a newly created device
+  </Card>
+  <Card title="Verify TOTP Code" href="/api/totp/verify-totp">
+    Authenticate with a TOTP code
+  </Card>
+</CardGroup>

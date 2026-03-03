@@ -1,0 +1,91 @@
+---
+title: Assign Role to User
+description: Assign a role to a user in a specific tenant
+---
+
+## Endpoint
+
+```
+PUT /recipe/user/role
+```
+
+This is a tenant-specific API that assigns an existing role to a user.
+
+## Request Body
+
+<ParamField body="userId" type="string" required>
+  The ID of the user to assign the role to.
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  The name of the role to assign. The role must already exist. Cannot be empty or whitespace only.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X PUT https://your-api-domain.com/recipe/user/role \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "role": "admin"
+  }'
+```
+
+## Response
+
+### Success Response
+
+<ResponseField name="status" type="string">
+  Returns `"OK"` when the role is successfully assigned
+</ResponseField>
+
+<ResponseField name="didUserAlreadyHaveRole" type="boolean">
+  - `true` if the user already had this role
+  - `false` if the role was newly assigned
+</ResponseField>
+
+```json
+{
+  "status": "OK",
+  "didUserAlreadyHaveRole": false
+}
+```
+
+### Error Response
+
+<ResponseField name="status" type="string">
+  Returns `"UNKNOWN_ROLE_ERROR"` when the specified role does not exist
+</ResponseField>
+
+```json
+{
+  "status": "UNKNOWN_ROLE_ERROR"
+}
+```
+
+## Implementation Details
+
+**Source**: `/workspace/source/src/main/java/io/supertokens/webserver/api/userroles/AddUserRoleAPI.java:37`
+
+- Role names are trimmed of leading/trailing whitespace before processing
+- The role must be created first using the [Create Role](/api/roles/create) endpoint
+- Role assignments are scoped to the tenant in which they are created
+- Assigning a role that a user already has is not an error - the API will return successfully with `didUserAlreadyHaveRole: true`
+
+## Error Responses
+
+<ResponseField name="error" type="BadRequestException">
+  Returned when the `role` field is empty or whitespace only
+</ResponseField>
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Get User Roles" href="/api/roles/get-user-roles">
+    Retrieve all roles assigned to a user
+  </Card>
+  <Card title="Remove User Role" href="/api/roles/remove-user-role">
+    Remove a role from a user
+  </Card>
+</CardGroup>

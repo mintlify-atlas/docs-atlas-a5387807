@@ -1,0 +1,96 @@
+---
+title: SAML Assertion Callback
+description: Endpoint for handling SAML assertion callback from IdP
+---
+
+## Handle SAML Callback
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/saml/callback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "samlResponse": "base64-encoded-saml-response",
+    "relayState": "state-from-login-request"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "redirectURI": "https://myapp.com/auth/callback?code=auth-code&state=state-value"
+}
+```
+</ResponseExample>
+
+<ParamField path="samlResponse" type="string" required>
+  Base64-encoded SAML response from the Identity Provider
+</ParamField>
+
+<ParamField path="relayState" type="string">
+  Optional relay state parameter passed during login initiation
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_RELAY_STATE_ERROR", "INVALID_CLIENT_ERROR", "SAML_RESPONSE_VERIFICATION_FAILED_ERROR", or "IDP_LOGIN_DISALLOWED_ERROR"
+</ResponseField>
+
+<ResponseField name="redirectURI" type="string">
+  The URI to redirect the user back to your application, including any authentication tokens or codes
+</ResponseField>
+
+## Response Status Codes
+
+### OK
+SAML assertion was successfully validated. The `redirectURI` contains the callback URL with authentication information.
+
+### INVALID_RELAY_STATE_ERROR
+The relay state parameter is invalid or doesn't match the expected format.
+
+### INVALID_CLIENT_ERROR
+The SAML client configuration referenced in the assertion is not found or invalid.
+
+### SAML_RESPONSE_VERIFICATION_FAILED_ERROR
+The SAML assertion failed signature verification or validation. This could indicate:
+- Invalid signature
+- Expired assertion
+- Assertion conditions not met
+- Certificate mismatch
+
+### IDP_LOGIN_DISALLOWED_ERROR
+IdP-initiated login was attempted but is not enabled for this client.
+
+## Usage
+
+This endpoint is typically called automatically when the Identity Provider redirects back to your application after authentication. The SAML response is usually sent via HTTP POST from the IdP to your Assertion Consumer Service (ACS) URL.
+
+```html HTML Form Example
+<!-- IdP sends this form via POST -->
+<form method="POST" action="https://your-domain.com/recipe/saml/callback">
+  <input type="hidden" name="SAMLResponse" value="base64-encoded-response" />
+  <input type="hidden" name="RelayState" value="state-value" />
+  <input type="submit" value="Continue" />
+</form>
+```
+
+```javascript Backend Processing
+// Your backend should extract the SAML response and call this endpoint
+const samlResponse = req.body.SAMLResponse;
+const relayState = req.body.RelayState;
+
+const result = await fetch('https://your-domain.com/recipe/saml/callback', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    samlResponse: samlResponse,
+    relayState: relayState
+  })
+});
+
+const data = await result.json();
+if (data.status === 'OK') {
+  res.redirect(data.redirectURI);
+}
+```

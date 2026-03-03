@@ -1,0 +1,76 @@
+---
+title: SAML Login Initiation
+description: Endpoint for initiating SAML authentication flow
+---
+
+## Create SAML Login Redirect
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/saml/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientId": "my-saml-client",
+    "redirectURI": "https://myapp.com/auth/callback",
+    "state": "optional-state-parameter",
+    "acsURL": "https://myapp.com/recipe/saml/acs"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "ssoRedirectURI": "https://idp.example.com/sso?SAMLRequest=encoded-request&RelayState=state"
+}
+```
+</ResponseExample>
+
+<ParamField path="clientId" type="string" required>
+  The SAML client ID configured in your application
+</ParamField>
+
+<ParamField path="redirectURI" type="string" required>
+  The URI to redirect to after successful authentication. Must be in the client's redirectURIs list
+</ParamField>
+
+<ParamField path="state" type="string">
+  Optional state parameter to maintain state between request and callback
+</ParamField>
+
+<ParamField path="acsURL" type="string" required>
+  Assertion Consumer Service URL where IdP will POST the SAML response
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK" or "INVALID_CLIENT_ERROR"
+</ResponseField>
+
+<ResponseField name="ssoRedirectURI" type="string">
+  The complete SSO URL to redirect the user to for authentication with the IdP. This URL includes the encoded SAML authentication request and relay state
+</ResponseField>
+
+## Usage
+
+After receiving the `ssoRedirectURI`, redirect the user's browser to this URL. The user will authenticate with the Identity Provider and be redirected back to your application's callback endpoint.
+
+```javascript Example
+// Frontend example
+fetch('/recipe/saml/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    clientId: 'my-saml-client',
+    redirectURI: 'https://myapp.com/auth/callback',
+    state: 'random-state-value',
+    acsURL: 'https://myapp.com/recipe/saml/acs'
+  })
+})
+.then(res => res.json())
+.then(data => {
+  if (data.status === 'OK') {
+    window.location.href = data.ssoRedirectURI;
+  }
+});
+```

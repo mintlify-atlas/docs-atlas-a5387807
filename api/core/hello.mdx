@@ -1,0 +1,196 @@
+---
+title: 'Health Check'
+description: 'GET /hello - Test SuperTokens Core server connectivity and health'
+---
+
+## Overview
+
+The `/hello` endpoint is a health check endpoint that verifies the SuperTokens Core server is running and can connect to the database. This endpoint is useful for monitoring, load balancers, and integration tests.
+
+**Key Features:**
+- No authentication required
+- No API version header required
+- Supports all HTTP methods (GET, POST, PUT, DELETE)
+- Tests database connectivity
+- Implements rate limiting (200 requests per window)
+- App-specific (can be scoped to specific apps)
+
+## Endpoint
+
+```
+GET /hello
+POST /hello
+PUT /hello
+DELETE /hello
+```
+
+**Base URL:** `http://localhost:3567`
+
+## Request
+
+### Headers
+
+No headers required. API key and version headers are optional and ignored.
+
+### Query Parameters
+
+None.
+
+### Request Body
+
+None.
+
+## Response
+
+### Success Response
+
+**Status Code:** `200 OK`
+
+**Content-Type:** `text/plain`
+
+**Body:**
+```
+Hello
+```
+
+If the server is healthy and database connections are working, returns the plain text string `"Hello"`.
+
+### Rate Limited Response
+
+**Status Code:** `200 OK`
+
+**Body (in testing mode):**
+```
+RateLimitedHello
+```
+
+When rate limited in testing mode, returns `"RateLimitedHello"`. In production mode, still returns `"Hello"` even when rate limited.
+
+### Error Response
+
+**Status Code:** `500 Internal Server Error`
+
+If the server cannot connect to the database or a storage exception occurs, returns a 500 error with a ServletException.
+
+## Examples
+
+### cURL
+
+```bash
+curl http://localhost:3567/hello
+```
+
+**Response:**
+```
+Hello
+```
+
+### App-Specific Request
+
+```bash
+curl http://localhost:3567/appid-myapp/hello
+```
+
+### Tenant-Specific Request
+
+```bash
+curl http://localhost:3567/tenant1/hello
+```
+
+### JavaScript (Node.js)
+
+```javascript
+const response = await fetch('http://localhost:3567/hello');
+const text = await response.text();
+console.log(text); // "Hello"
+```
+
+### Python
+
+```python
+import requests
+
+response = requests.get('http://localhost:3567/hello')
+print(response.text)  # "Hello"
+```
+
+## Implementation Details
+
+### Rate Limiting
+
+The endpoint implements rate limiting with a limit of 200 requests per window per app. The rate limiter is app-specific, so different apps have separate rate limits.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/HelloAPI.java:89`
+
+### Database Health Check
+
+The endpoint tests database connectivity by calling `storage.getKeyValue()` on all storage instances for the app. This ensures that:
+- The database connection is active
+- All storage layers are responding
+- The core can read from the database
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/HelloAPI.java:106-110`
+
+## Use Cases
+
+### Health Monitoring
+
+```bash
+#!/bin/bash
+# Simple health check script
+if curl -f http://localhost:3567/hello > /dev/null 2>&1; then
+  echo "SuperTokens is healthy"
+  exit 0
+else
+  echo "SuperTokens is down"
+  exit 1
+fi
+```
+
+### Docker Health Check
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3567/hello || exit 1
+```
+
+### Kubernetes Liveness Probe
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /hello
+    port: 3567
+  initialDelaySeconds: 10
+  periodSeconds: 30
+```
+
+## Error Handling
+
+<Warning>
+  If the `/hello` endpoint returns a 500 error, check your database connection and storage configuration. This typically indicates a storage layer issue.
+</Warning>
+
+**Common Issues:**
+- Database connection timeout
+- Storage plugin not initialized
+- Database credentials incorrect
+- Network connectivity issues
+
+## Notes
+
+- This endpoint is also available at the root path `/` (see NotFoundOrHelloAPI)
+- Rate limiting is transparent to the client - no error is returned
+- The endpoint works across all HTTP methods for maximum compatibility
+- No API key required makes it suitable for public health checks
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/api/core/config">
+    Get server configuration details
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/core/overview">
+    Learn about authentication and error handling
+  </Card>
+</CardGroup>

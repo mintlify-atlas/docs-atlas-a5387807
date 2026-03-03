@@ -1,97 +1,150 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Introduction
+description: Open source authentication service providing secure login and session management
 ---
 
-## Setting up
+# SuperTokens Core
 
-Get your documentation site up and running in minutes.
+SuperTokens Core is an open-source authentication HTTP service that provides the core logic for user authentication and session management. It's designed as a self-hosted alternative to proprietary authentication providers like Auth0, Firebase Auth, and AWS Cognito.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running with SuperTokens Core in minutes
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Learn about the three-tier SuperTokens architecture
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure SuperTokens Core for your use case
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/core/overview">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>
+
+## What is SuperTokens Core?
+
+SuperTokens Core is the HTTP service that sits at the heart of the SuperTokens architecture. It provides:
+
+- **Complete authentication logic**: Handles sign-up, sign-in, session management, and token operations
+- **Database operations**: Manages user data, sessions, and authentication state
+- **Multi-tenancy support**: Built-in support for apps, tenants, and organizations
+- **Multiple authentication methods**: Email/password, passwordless, social login, OAuth, MFA, WebAuthn, and SAML
+- **Session management**: Secure access and refresh tokens with automatic rotation
+- **Self-hosted control**: 100% control over your user data and infrastructure
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Session Management" icon="key">
+    Secure access and refresh tokens with automatic rotation and theft detection
+  </Card>
+  <Card title="Email/Password Auth" icon="envelope">
+    Traditional authentication with password reset and account recovery
+  </Card>
+  <Card title="Passwordless Login" icon="mobile">
+    One-time codes via email or SMS for frictionless authentication
+  </Card>
+  <Card title="Social Login" icon="users">
+    OAuth integration with Google, Facebook, GitHub, Apple, and more
+  </Card>
+  <Card title="OAuth 2.0 Provider" icon="shield">
+    Act as an OAuth provider for your ecosystem
+  </Card>
+  <Card title="Multi-Factor Authentication" icon="lock">
+    TOTP-based MFA for enhanced security
+  </Card>
+  <Card title="WebAuthn Support" icon="fingerprint">
+    Modern passwordless authentication with passkeys and biometrics
+  </Card>
+  <Card title="SAML Integration" icon="building">
+    Enterprise SSO with SAML 2.0 support
+  </Card>
+  <Card title="Multi-tenancy" icon="sitemap">
+    Built-in support for multi-tenant applications and organizations
+  </Card>
+  <Card title="User Roles" icon="user-shield">
+    Role-based access control with flexible permissions
+  </Card>
+  <Card title="User Metadata" icon="database">
+    Store custom attributes for each user
+  </Card>
+  <Card title="Bulk Import" icon="file-import">
+    Migrate users from other platforms with password hash support
+  </Card>
+</CardGroup>
+
+## Why SuperTokens Core?
+
+### Open source and self-hosted
+
+- **Free forever**: No user limits, no feature restrictions
+- **Complete control**: Host on your own infrastructure
+- **Data ownership**: All user data stays in your database
+- **No vendor lock-in**: Export and migrate at any time
+
+### Built for developers
+
+- **Simple integration**: REST APIs that work with any backend
+- **SDKs available**: Official SDKs for Node.js, Python, Go, and more
+- **Comprehensive docs**: Detailed API documentation and guides
+- **Active community**: Join our [Discord](https://supertokens.io/discord) for support
+
+### Production-ready
+
+- **Battle-tested**: Used by thousands of applications
+- **Secure by default**: Industry-standard security practices
+- **Scalable**: Handle millions of users with ease
+- **Multi-database support**: PostgreSQL, MySQL, MongoDB, and SQLite
+
+## Architecture overview
+
+SuperTokens uses a three-tier architecture:
+
+1. **Frontend SDK**: Manages session tokens and renders UI components
+2. **Backend SDK**: Provides authentication APIs that your frontend calls
+3. **SuperTokens Core**: The HTTP service for core authentication logic (this project)
+
+Your Backend SDK communicates with SuperTokens Core to perform authentication operations, while the Frontend SDK communicates with your Backend SDK.
+
+<Card title="Learn more about architecture" icon="arrow-right" href="/architecture">
+  Understand how the three components work together
 </Card>
 
-## Make it yours
+## Supported databases
 
-Design a docs site that looks great and empowers your users.
+SuperTokens Core supports multiple database backends:
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+- **PostgreSQL** 11 or higher
+- **MySQL** 5.7 or higher
+- **MongoDB** 4.2 or higher (document-based storage)
+- **SQLite** (for development)
 
-## Create beautiful pages
+Database migrations are handled automatically when you start the service.
 
-Everything you need to create world-class documentation.
+## Next steps
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Get started with quickstart" icon="play" href="/quickstart">
+    Run SuperTokens Core locally in 5 minutes
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Explore authentication methods" icon="lock" href="/auth/email-password">
+    Learn about available authentication options
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Deploy to production" icon="server" href="/deployment/self-hosting">
+    Self-host SuperTokens Core in your infrastructure
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Browse API reference" icon="book" href="/api/core/overview">
+    Dive into the complete API documentation
   </Card>
-</Columns>
+</CardGroup>
 
-## Need inspiration?
+## Community and support
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+- **Discord**: Join our [community Discord](https://supertokens.io/discord) for questions and discussions
+- **GitHub**: Report issues and contribute on [GitHub](https://github.com/supertokens/supertokens-core)
+- **Documentation**: Full documentation at [supertokens.io/docs](https://supertokens.io/docs)
+
+## License
+
+SuperTokens Core is licensed under Apache 2.0. Enterprise features (located in the `ee/` directory) require a commercial license for production use.

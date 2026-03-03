@@ -1,0 +1,260 @@
+---
+title: WebAuthn Registration
+description: Endpoints for WebAuthn credential registration and signup
+---
+
+## Generate Registration Options
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/webauthn/options/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "displayName": "John Doe",
+    "relyingPartyName": "My App",
+    "relyingPartyId": "example.com",
+    "origin": "https://example.com",
+    "timeout": 60000,
+    "attestation": "none",
+    "residentKey": "required",
+    "userVerification": "preferred",
+    "userPresence": false,
+    "supportedAlgorithmIDs": [-8, -7, -257]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "webauthnGeneratedOptionsId": "generated-options-id",
+  "publicKey": {
+    "challenge": "base64-encoded-challenge",
+    "rp": {
+      "name": "My App",
+      "id": "example.com"
+    },
+    "user": {
+      "id": "base64-user-id",
+      "name": "user@example.com",
+      "displayName": "John Doe"
+    },
+    "pubKeyCredParams": [
+      {"alg": -8, "type": "public-key"},
+      {"alg": -7, "type": "public-key"},
+      {"alg": -257, "type": "public-key"}
+    ],
+    "timeout": 60000,
+    "attestation": "none",
+    "authenticatorSelection": {
+      "residentKey": "required",
+      "userVerification": "preferred"
+    }
+  }
+}
+```
+</ResponseExample>
+
+<ParamField path="email" type="string" required>
+  User's email address (will be normalized)
+</ParamField>
+
+<ParamField path="displayName" type="string">
+  Display name for the user (defaults to email if not provided)
+</ParamField>
+
+<ParamField path="relyingPartyName" type="string" required>
+  Human-readable name of the relying party (your application)
+</ParamField>
+
+<ParamField path="relyingPartyId" type="string" required>
+  Relying party identifier (usually your domain)
+</ParamField>
+
+<ParamField path="origin" type="string" required>
+  Origin URL for credential binding
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Timeout in milliseconds (default: 60000)
+</ParamField>
+
+<ParamField path="attestation" type="string">
+  Attestation conveyance preference: "none", "indirect", "direct" (default: "none")
+</ParamField>
+
+<ParamField path="residentKey" type="string">
+  Resident key requirement: "required", "preferred", "discouraged" (default: "required")
+</ParamField>
+
+<ParamField path="userVerification" type="string">
+  User verification requirement: "required", "preferred", "discouraged" (default: "preferred")
+</ParamField>
+
+<ParamField path="userPresence" type="boolean">
+  Whether user presence is required (default: false)
+</ParamField>
+
+<ParamField path="supportedAlgorithmIDs" type="array">
+  Array of COSE algorithm identifiers (default: [-8, -7, -257])
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK" or "INVALID_OPTIONS_ERROR"
+</ResponseField>
+
+<ResponseField name="webauthnGeneratedOptionsId" type="string">
+  Unique identifier for these options (used in subsequent registration call)
+</ResponseField>
+
+<ResponseField name="publicKey" type="object">
+  WebAuthn PublicKeyCredentialCreationOptions to pass to navigator.credentials.create()
+</ResponseField>
+
+---
+
+## Sign Up with Credential
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/webauthn/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "webauthnGeneratedOptionsId": "generated-options-id",
+    "credential": {
+      "id": "credential-id",
+      "rawId": "base64-raw-id",
+      "response": {
+        "attestationObject": "base64-attestation",
+        "clientDataJSON": "base64-client-data"
+      },
+      "type": "public-key"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "user": {
+    "id": "user-id",
+    "isPrimaryUser": false,
+    "tenantIds": ["public"],
+    "emails": ["user@example.com"],
+    "phoneNumbers": [],
+    "thirdParty": [],
+    "loginMethods": [
+      {
+        "recipeId": "webauthn",
+        "recipeUserId": "recipe-user-id",
+        "tenantIds": ["public"],
+        "email": "user@example.com",
+        "timeJoined": 1234567890,
+        "verified": true,
+        "webauthN": {
+          "credentialIds": ["credential-id"]
+        }
+      }
+    ],
+    "timeJoined": 1234567890
+  },
+  "webauthnCredentialId": "credential-id",
+  "relyingPartyId": "example.com",
+  "relyingPartyName": "My App",
+  "recipeUserId": "recipe-user-id"
+}
+```
+</ResponseExample>
+
+<ParamField path="webauthnGeneratedOptionsId" type="string" required>
+  ID from the options generation response
+</ParamField>
+
+<ParamField path="credential" type="object" required>
+  PublicKeyCredential object from navigator.credentials.create()
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_OPTIONS_ERROR", "EMAIL_ALREADY_EXISTS_ERROR", "INVALID_AUTHENTICATOR_ERROR", "OPTIONS_NOT_FOUND_ERROR", or "INVALID_CREDENTIALS_ERROR"
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Created user object with login methods
+</ResponseField>
+
+<ResponseField name="webauthnCredentialId" type="string">
+  The credential ID that was registered
+</ResponseField>
+
+<ResponseField name="recipeUserId" type="string">
+  The recipe user ID for this WebAuthn login method
+</ResponseField>
+
+---
+
+## Register Credential for Existing User
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/webauthn/user/credential/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipeUserId": "recipe-user-id",
+    "webauthnGeneratedOptionsId": "generated-options-id",
+    "credential": {
+      "id": "credential-id",
+      "rawId": "base64-raw-id",
+      "response": {
+        "attestationObject": "base64-attestation",
+        "clientDataJSON": "base64-client-data"
+      },
+      "type": "public-key"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "webauthnCredentialId": "credential-id",
+  "recipeUserId": "recipe-user-id",
+  "email": "user@example.com",
+  "relyingPartyId": "example.com",
+  "relyingPartyName": "My App"
+}
+```
+</ResponseExample>
+
+<ParamField path="recipeUserId" type="string" required>
+  The recipe user ID to add the credential to
+</ParamField>
+
+<ParamField path="webauthnGeneratedOptionsId" type="string" required>
+  ID from the options generation response
+</ParamField>
+
+<ParamField path="credential" type="object" required>
+  PublicKeyCredential object from navigator.credentials.create()
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_OPTIONS_ERROR", "INVALID_AUTHENTICATOR_ERROR", "INVALID_CREDENTIALS_ERROR", "OPTIONS_NOT_FOUND_ERROR", "CREDENTIAL_ALREADY_EXISTS_ERROR", or "UNKNOWN_USER_ID_ERROR"
+</ResponseField>
+
+<ResponseField name="webauthnCredentialId" type="string">
+  The credential ID that was registered
+</ResponseField>
+
+<ResponseField name="recipeUserId" type="string">
+  The recipe user ID
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  User's email address
+</ResponseField>

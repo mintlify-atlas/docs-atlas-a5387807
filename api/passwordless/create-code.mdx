@@ -1,0 +1,106 @@
+---
+title: 'Create Passwordless Code'
+openapi: 'POST /recipe/signinup/code'
+---
+
+## Overview
+
+Creates a new passwordless authentication code for a user. You must provide exactly one of: `email`, `phoneNumber`, or `deviceId`.
+
+## Request Body
+
+Provide **exactly one** of the following:
+
+- `email` (string, optional): Email address to send the code to
+- `phoneNumber` (string, optional): Phone number to send the code to  
+- `deviceId` (string, optional): Existing device ID to create a new code for (resend scenario)
+- `userInputCode` (string, optional): Custom code to use instead of generating one
+
+## Response
+
+### Success Response (200)
+
+```json
+{
+  "status": "OK",
+  "preAuthSessionId": "string",
+  "codeId": "string",
+  "deviceId": "string",
+  "userInputCode": "string",
+  "linkCode": "string",
+  "timeCreated": 1234567890,
+  "codeLifetime": 900000
+}
+```
+
+**Response Fields:**
+
+- `preAuthSessionId`: Unique session identifier (hashed device ID)
+- `codeId`: Unique identifier for this specific code
+- `deviceId`: Device identifier for this authentication attempt
+- `userInputCode`: The short code for the user to enter
+- `linkCode`: Code for magic link authentication
+- `timeCreated`: Unix timestamp when code was created
+- `codeLifetime`: Code validity duration in milliseconds
+
+### Error Responses
+
+#### RESTART_FLOW_ERROR (200)
+
+The device ID is invalid or expired. Start a new authentication flow.
+
+```json
+{
+  "status": "RESTART_FLOW_ERROR"
+}
+```
+
+#### USER_INPUT_CODE_ALREADY_USED_ERROR (200)
+
+The provided custom `userInputCode` is already in use.
+
+```json
+{
+  "status": "USER_INPUT_CODE_ALREADY_USED_ERROR"
+}
+```
+
+## Examples
+
+### Create code for email
+
+```bash
+curl -X POST https://your-api.com/recipe/signinup/code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+
+### Create code for phone number
+
+```bash
+curl -X POST https://your-api.com/recipe/signinup/code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "+1234567890"
+  }'
+```
+
+### Resend code (create new code for existing device)
+
+```bash
+curl -X POST https://your-api.com/recipe/signinup/code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deviceId": "existing-device-id"
+  }'
+```
+
+## Notes
+
+- Email addresses are automatically normalized
+- Phone numbers should include country code (e.g., +1234567890)
+- Codes typically expire after 15 minutes (900000ms)
+- You cannot provide more than one of: email, phoneNumber, or deviceId
+- If `userInputCode` is provided, it cannot be an empty string

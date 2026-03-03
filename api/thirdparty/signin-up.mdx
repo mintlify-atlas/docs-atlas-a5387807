@@ -1,0 +1,256 @@
+---
+title: 'Sign In / Sign Up'
+description: 'POST /recipe/signinup - Authenticate users with third-party social providers'
+---
+
+## Endpoint
+
+```
+POST /recipe/signinup
+```
+
+Authenticates a user with a third-party provider (social login). This endpoint handles both signing in existing users and signing up new users in a single operation.
+
+## Request Headers
+
+<ParamField header="api-key" type="string" required>
+  Your SuperTokens API key for authentication
+</ParamField>
+
+<ParamField header="cdi-version" type="string">
+  Core Driver Interface version (e.g., "2.7", "3.0", "4.0", "5.0")
+</ParamField>
+
+## Request Body
+
+<ParamField body="thirdPartyId" type="string" required>
+  The identifier for the third-party provider (e.g., "google", "facebook", "github")
+</ParamField>
+
+<ParamField body="thirdPartyUserId" type="string" required>
+  The user's unique identifier from the third-party provider
+</ParamField>
+
+<ParamField body="email" type="object" required>
+  Email information object containing:
+  
+  <Expandable title="email properties">
+    <ParamField body="id" type="string" required>
+      The user's email address from the provider
+    </ParamField>
+    
+    <ParamField body="isVerified" type="boolean" required>
+      Whether the email is verified by the provider (CDI 4.0+)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X POST https://your-domain.com/recipe/signinup \
+  -H "api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "thirdPartyId": "google",
+    "thirdPartyUserId": "115557735426603809847",
+    "email": {
+      "id": "user@example.com",
+      "isVerified": true
+    }
+  }'
+```
+
+## Response
+
+### Success Response
+
+<ResponseField name="status" type="string">
+  Returns `"OK"` on successful authentication
+</ResponseField>
+
+<ResponseField name="createdNewUser" type="boolean">
+  `true` if a new user account was created, `false` if an existing user signed in
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  User information object containing:
+  
+  <Expandable title="user properties">
+    <ResponseField name="id" type="string">
+      The SuperTokens user ID (or external user ID if mapped)
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      The user's email address
+    </ResponseField>
+    
+    <ResponseField name="timeJoined" type="number">
+      Timestamp when the user account was created
+    </ResponseField>
+    
+    <ResponseField name="thirdParty" type="object">
+      Third-party provider information:
+      - `id`: Provider identifier
+      - `userId`: User ID from the provider
+    </ResponseField>
+    
+    <ResponseField name="tenantIds" type="array">
+      List of tenant IDs the user belongs to (CDI 3.0+)
+    </ResponseField>
+    
+    <ResponseField name="loginMethods" type="array">
+      Array of login methods associated with the user (CDI 4.0+)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="recipeUserId" type="string">
+  The recipe-specific user ID for this login method (CDI 4.0+)
+</ResponseField>
+
+### Success Response Example
+
+```json
+{
+  "status": "OK",
+  "createdNewUser": false,
+  "user": {
+    "id": "fa3b009d-597c-4a67-94d8-7e3aa48f4f63",
+    "email": "user@example.com",
+    "timeJoined": 1678901234567,
+    "thirdParty": {
+      "id": "google",
+      "userId": "115557735426603809847"
+    },
+    "tenantIds": ["public"],
+    "loginMethods": [
+      {
+        "recipeId": "thirdparty",
+        "recipeUserId": "fa3b009d-597c-4a67-94d8-7e3aa48f4f63",
+        "thirdParty": {
+          "id": "google",
+          "userId": "115557735426603809847"
+        },
+        "email": "user@example.com",
+        "timeJoined": 1678901234567,
+        "verified": true
+      }
+    ]
+  },
+  "recipeUserId": "fa3b009d-597c-4a67-94d8-7e3aa48f4f63"
+}
+```
+
+### Error Response
+
+<ResponseField name="status" type="string">
+  Returns `"EMAIL_CHANGE_NOT_ALLOWED_ERROR"` when email cannot be changed
+</ResponseField>
+
+<ResponseField name="reason" type="string">
+  Error reason description
+</ResponseField>
+
+### Error Response Example
+
+```json
+{
+  "status": "EMAIL_CHANGE_NOT_ALLOWED_ERROR",
+  "reason": "Email already associated with another primary user."
+}
+```
+
+## Behavior Details
+
+### Sign Up vs Sign In
+
+This endpoint automatically determines whether to create a new user or sign in an existing user based on:
+
+1. **Existing User**: If a user with the same `thirdPartyId` and `thirdPartyUserId` exists, the user is signed in
+2. **New User**: If no matching user exists, a new user account is created
+
+### Email Verification
+
+The `isVerified` flag in the email object controls email verification:
+
+- `true`: The email is marked as verified (trusted provider)
+- `false`: The email requires manual verification
+
+<Note>
+  Email verification support was added in CDI version 4.0. For earlier versions, emails are not automatically verified.
+</Note>
+
+### Account Linking
+
+When account linking is enabled (CDI 4.0+), this endpoint may:
+
+- Link the social account to an existing user with the same email
+- Prevent email changes if the email is already associated with another primary user
+
+### Multi-tenancy
+
+This API is tenant-specific. The tenant is determined by:
+
+- The `tenantId` header or query parameter
+- The default tenant if not specified
+
+<Warning>
+  Third-party login must be enabled for the tenant. If disabled, the API will return a `BadPermissionException`.
+</Warning>
+
+## Version Compatibility
+
+| Feature | CDI Version | Notes |
+|---------|-------------|-------|
+| Basic sign in/up | 2.7+ | Core functionality |
+| Email verification | 4.0+ | `isVerified` field support |
+| Account linking | 4.0+ | Automatic account linking |
+| Recipe user ID | 4.0+ | Returns `recipeUserId` field |
+| Tenant IDs | 3.0+ | Multi-tenancy support |
+
+## Common Integration Pattern
+
+```javascript
+// After OAuth callback
+const response = await fetch('https://your-domain.com/recipe/signinup', {
+  method: 'POST',
+  headers: {
+    'api-key': 'your-api-key',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    thirdPartyId: 'google',
+    thirdPartyUserId: oauthUserInfo.sub,
+    email: {
+      id: oauthUserInfo.email,
+      isVerified: oauthUserInfo.email_verified
+    }
+  })
+});
+
+const data = await response.json();
+
+if (data.status === 'OK') {
+  console.log('User authenticated:', data.user.id);
+  console.log('New user:', data.createdNewUser);
+  // Create session for the user
+} else if (data.status === 'EMAIL_CHANGE_NOT_ALLOWED_ERROR') {
+  console.error('Email conflict:', data.reason);
+}
+```
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Create Session" icon="key" href="/api/session/create">
+    Create a session after authentication
+  </Card>
+  <Card title="Get User" icon="user" href="/api/users/get-by-id">
+    Retrieve user information
+  </Card>
+</CardGroup>
+
+## Source Code Reference
+
+Implementation: `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/thirdparty/SignInUpAPI.java:44`

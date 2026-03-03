@@ -1,0 +1,51 @@
+---
+title: OAuth 2.0 Provider Overview
+description: SuperTokens OAuth 2.0 provider implementation
+---
+
+## Overview
+
+SuperTokens provides a complete OAuth 2.0 provider implementation that allows you to turn your application into an OAuth provider. This enables other applications to authenticate users through your SuperTokens instance.
+
+## Key Features
+
+- **OAuth 2.0 Compliance**: Full implementation of OAuth 2.0 authorization framework
+- **Multiple Grant Types**: Support for authorization code, refresh token, and client credentials flows
+- **JWT Access Tokens**: Access tokens are issued as JWTs with customizable claims
+- **Client Management**: Create and manage OAuth clients programmatically
+- **Token Introspection**: Validate and inspect OAuth tokens
+- **Session Integration**: OAuth tokens can be linked to SuperTokens sessions
+
+## Grant Types Supported
+
+### Authorization Code Flow
+The most common OAuth flow for web applications. Users authorize access through a redirect-based flow.
+
+### Refresh Token Flow
+Exchange refresh tokens for new access tokens without requiring user interaction.
+
+### Client Credentials Flow
+Machine-to-machine authentication where applications authenticate using client credentials.
+
+## Architecture
+
+SuperTokens OAuth implementation consists of:
+
+1. **Authorization Endpoint** (`/recipe/oauth/auth`) - Initiates the OAuth flow
+2. **Token Endpoint** (`/recipe/oauth/token`) - Issues access and refresh tokens
+3. **Client Management** (`/recipe/oauth/clients`) - Create and manage OAuth clients
+4. **Token Introspection** - Validate tokens and check their status
+5. **Token Revocation** - Revoke access and refresh tokens
+
+## Common Use Cases
+
+- Building an OAuth provider for third-party integrations
+- Implementing single sign-on (SSO) across multiple applications
+- Securing machine-to-machine API access
+- Enabling mobile app authentication
+
+## Next Steps
+
+- [Authorization Endpoint](/api/oauth/authorize) - Start the OAuth flow
+- [Token Endpoint](/api/oauth/token) - Issue and refresh tokens
+- [Client Management](/api/oauth/clients) - Manage OAuth clients

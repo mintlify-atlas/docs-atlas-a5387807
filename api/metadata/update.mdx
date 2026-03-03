@@ -1,0 +1,121 @@
+---
+title: Update User Metadata
+description: Create or update metadata for a specific user
+---
+
+## Endpoint
+
+```
+PUT /recipe/user/metadata
+```
+
+This is an app-specific API that updates or creates metadata for a user. The metadata update is performed as a shallow merge.
+
+## Request Body
+
+<ParamField body="userId" type="string" required>
+  The ID of the user whose metadata you want to update.
+</ParamField>
+
+<ParamField body="metadataUpdate" type="object" required>
+  A JSON object containing the metadata fields to update or add. This will be shallow-merged with existing metadata.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X PUT https://your-api-domain.com/recipe/user/metadata \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "metadataUpdate": {
+      "preferences": {
+        "theme": "dark",
+        "language": "en"
+      },
+      "accountType": "premium"
+    }
+  }'
+```
+
+## Response
+
+<ResponseField name="status" type="string">
+  Always returns `"OK"`
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  The complete metadata object after the update has been applied.
+</ResponseField>
+
+## Response Example
+
+```json
+{
+  "status": "OK",
+  "metadata": {
+    "preferences": {
+      "theme": "dark",
+      "language": "en"
+    },
+    "accountType": "premium",
+    "lastLoginLocation": "New York"
+  }
+}
+```
+
+## Implementation Details
+
+**Source**: `/workspace/source/src/main/java/io/supertokens/webserver/api/usermetadata/UserMetadataAPI.java:78`
+
+- This API requires public tenant access
+- Metadata updates are performed as a **shallow merge**
+  - New fields are added
+  - Existing fields are updated
+  - Fields not in `metadataUpdate` remain unchanged
+- User ID mapping is automatically handled for app-specific queries
+- Returns the complete, updated metadata object
+
+## Merge Behavior Example
+
+If existing metadata is:
+```json
+{
+  "theme": "light",
+  "notifications": true,
+  "lastLogin": "2024-01-01"
+}
+```
+
+And you send an update:
+```json
+{
+  "metadataUpdate": {
+    "theme": "dark",
+    "language": "en"
+  }
+}
+```
+
+The resulting metadata will be:
+```json
+{
+  "theme": "dark",
+  "notifications": true,
+  "lastLogin": "2024-01-01",
+  "language": "en"
+}
+```
+
+## Use Cases
+
+- Store user preferences and settings
+- Save custom profile information
+- Track user-specific application state
+- Maintain feature flags per user
+
+## Related Endpoints
+
+<Card title="Get User Metadata" href="/api/metadata/get">
+  Retrieve existing metadata for a user
+</Card>

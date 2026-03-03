@@ -1,0 +1,198 @@
+---
+title: OAuth Client Management
+description: Create, update, retrieve, and list OAuth clients
+---
+
+## Overview
+
+Manage OAuth 2.0 clients for your SuperTokens instance. OAuth clients represent applications that can authenticate users through your OAuth provider.
+
+## GET /recipe/oauth/clients
+
+Retrieve a specific OAuth client by ID.
+
+### Query Parameters
+
+- **clientId** (string, required): The OAuth client ID
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "clientId": "string",
+  "clientSecret": "string",
+  "clientName": "string",
+  "scope": "string",
+  "redirectUris": ["string"],
+  "grantTypes": ["string"],
+  "responseTypes": ["string"],
+  "tokenEndpointAuthMethod": "string",
+  "enableRefreshTokenRotation": "boolean"
+}
+```
+
+### Example
+
+```bash
+curl -X GET "https://your-api-domain.com/recipe/oauth/clients?clientId=stcl_abc123"
+```
+
+## POST /recipe/oauth/clients
+
+Create a new OAuth client.
+
+### Request Body
+
+```json
+{
+  "clientId": "string (optional)",
+  "clientName": "string",
+  "scope": "string (optional)",
+  "redirectUris": ["string"],
+  "grantTypes": ["string"],
+  "responseTypes": ["string"],
+  "tokenEndpointAuthMethod": "string (optional)",
+  "enableRefreshTokenRotation": "boolean (optional)"
+}
+```
+
+### Parameters
+
+- **clientId** (string, optional): Custom client ID. If not provided, a random ID with prefix `stcl_` is generated
+- **clientName** (string, optional): Human-readable client name
+- **scope** (string, optional): Default OAuth scopes for this client
+- **redirectUris** (array, required): Allowed redirect URIs for authorization callbacks
+- **grantTypes** (array, required): Allowed grant types (e.g., `["authorization_code", "refresh_token"]`)
+- **responseTypes** (array, required): Allowed response types (e.g., `["code"]`)
+- **tokenEndpointAuthMethod** (string, optional): Method for authenticating at token endpoint
+- **enableRefreshTokenRotation** (boolean, optional): Enable refresh token rotation for enhanced security. Defaults to `false`
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "clientId": "string",
+  "clientSecret": "string",
+  "clientName": "string",
+  "redirectUris": ["string"],
+  "grantTypes": ["string"],
+  "enableRefreshTokenRotation": "boolean"
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/oauth/clients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientName": "My Application",
+    "redirectUris": ["https://my-app.com/callback"],
+    "grantTypes": ["authorization_code", "refresh_token"],
+    "responseTypes": ["code"],
+    "enableRefreshTokenRotation": true
+  }'
+```
+
+## PUT /recipe/oauth/clients
+
+Update an existing OAuth client.
+
+### Request Body
+
+```json
+{
+  "clientId": "string",
+  "clientName": "string (optional)",
+  "clientSecret": "string (optional)",
+  "scope": "string (optional)",
+  "redirectUris": ["string"] (optional),
+  "grantTypes": ["string"] (optional),
+  "responseTypes": ["string"] (optional),
+  "enableRefreshTokenRotation": "boolean (optional)"
+}
+```
+
+### Parameters
+
+- **clientId** (string, required): The client ID to update
+- All other parameters are optional and will update the corresponding client configuration
+- Omitted parameters will retain their existing values
+
+### Response
+
+Same structure as POST response with updated client information.
+
+### Example
+
+```bash
+curl -X PUT https://your-api-domain.com/recipe/oauth/clients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientId": "stcl_abc123",
+    "redirectUris": ["https://my-app.com/callback", "https://my-app.com/callback2"],
+    "enableRefreshTokenRotation": false
+  }'
+```
+
+## GET /recipe/oauth/clients/list
+
+List all OAuth clients for the current app.
+
+### Query Parameters
+
+- **pageSize** (number, optional): Number of clients per page (max 500)
+- **pageToken** (string, optional): Pagination token from previous response
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "clients": [
+    {
+      "clientId": "string",
+      "clientSecret": "string",
+      "clientName": "string",
+      "redirectUris": ["string"],
+      "grantTypes": ["string"],
+      "enableRefreshTokenRotation": "boolean"
+    }
+  ],
+  "nextPaginationToken": "string (optional)"
+}
+```
+
+### Example
+
+```bash
+curl -X GET "https://your-api-domain.com/recipe/oauth/clients/list?pageSize=50"
+```
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/oauth/CreateUpdateOrGetOAuthClientAPI.java:57` and `OAuthClientListAPI.java:37`
+- Recipe: `OAUTH`
+- Default client configuration:
+  - `accessTokenStrategy`: "jwt"
+  - `skipConsent`: true
+  - `subjectType`: "public"
+- Client IDs are automatically prefixed with `stcl_` if not provided
+- Client credentials are encrypted and stored securely
+- Clients are scoped to apps using an owner field: `{connectionUriDomain}_{appId}`
+- Client secrets are returned only on creation and retrieval, not in list operations
+- Refresh token rotation can be enabled per-client for enhanced security
+
+## Client Credentials Flow
+
+If a client is configured with only the `client_credentials` grant type, it is marked as a client credentials only client (`isClientCredentialsOnly: true`). This is used for machine-to-machine authentication.
+
+## Refresh Token Rotation
+
+When `enableRefreshTokenRotation` is true:
+- Each refresh token can only be used once
+- Using a refresh token issues a new refresh token and invalidates the old one
+- This prevents refresh token reuse attacks
+- When false, the same refresh token can be used multiple times until it expires

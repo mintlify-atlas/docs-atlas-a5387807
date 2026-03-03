@@ -1,0 +1,659 @@
+---
+title: User Metadata
+description: Store and manage custom user attributes with JSON-based metadata storage
+---
+
+## Overview
+
+SuperTokens Core provides a flexible metadata system for storing custom user attributes beyond authentication data. Store any JSON data associated with users including preferences, profile information, app-specific settings, and more.
+
+## Features
+
+<CardGroup cols={3}>
+  <Card title="JSON Storage" icon="brackets-curly">
+    Store any valid JSON structure
+  </Card>
+  <Card title="Shallow Merge" icon="code-merge">
+    Updates merge with existing data
+  </Card>
+  <Card title="Bulk Operations" icon="layer-group">
+    Get metadata for multiple users
+  </Card>
+</CardGroup>
+
+## Storage Structure
+
+Metadata is stored as a JSON object per user:
+
+```json
+{
+  "preferences": {
+    "theme": "dark",
+    "language": "en",
+    "notifications": true
+  },
+  "profile": {
+    "displayName": "John Doe",
+    "avatar": "https://example.com/avatar.jpg",
+    "bio": "Software engineer"
+  },
+  "settings": {
+    "timezone": "America/New_York",
+    "dateFormat": "MM/DD/YYYY"
+  },
+  "subscription": {
+    "plan": "premium",
+    "expiresAt": 1735689600000
+  }
+}
+```
+
+<Note>
+  Metadata is stored **per app**, not per tenant. All tenants in an app share the same user metadata.
+</Note>
+
+## Creating/Updating Metadata
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:53-80`:
+
+```java
+public static JsonObject updateUserMetadata(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String userId,
+    JsonObject metadataUpdate
+) {
+    UserMetadataSQLStorage umdStorage = 
+        StorageUtils.getUserMetadataStorage(storage);
+    
+    return umdStorage.startTransaction(con -> {
+        // Get existing metadata
+        JsonObject originalMetadata = umdStorage
+            .getUserMetadata_Transaction(appIdentifier, con, userId);
+        
+        // Create new object if none exists
+        JsonObject updatedMetadata = originalMetadata == null 
+            ? new JsonObject() 
+            : originalMetadata;
+        
+        // Shallow merge the update
+        MetadataUtils.shallowMergeMetadataUpdate(
+            updatedMetadata, metadataUpdate
+        );
+        
+        // Save to database
+        umdStorage.setUserMetadata_Transaction(
+            appIdentifier, con, userId, updatedMetadata
+        );
+        
+        return updatedMetadata;
+    });
+}
+```
+
+### Example: Update User Metadata
+
+```java
+// Create metadata update
+JsonObject metadataUpdate = new JsonObject();
+
+JsonObject preferences = new JsonObject();
+preferences.addProperty("theme", "dark");
+preferences.addProperty("language", "en");
+metadataUpdate.add("preferences", preferences);
+
+JsonObject profile = new JsonObject();
+profile.addProperty("displayName", "John Doe");
+profile.addProperty("avatar", "https://example.com/avatar.jpg");
+metadataUpdate.add("profile", profile);
+
+// Update metadata
+JsonObject updatedMetadata = UserMetadata.updateUserMetadata(
+    appIdentifier,
+    storage,
+    userId,
+    metadataUpdate
+);
+
+System.out.println("Updated metadata: " + updatedMetadata);
+```
+
+### Shallow Merge Behavior
+
+Updates use **shallow merge** - top-level keys are merged:
+
+```java
+// Existing metadata
+{
+  "preferences": {"theme": "light", "language": "en"},
+  "profile": {"displayName": "Jane"}
+}
+
+// Update
+{
+  "preferences": {"theme": "dark"},
+  "subscription": {"plan": "premium"}
+}
+
+// Result (preferences entirely replaced, subscription added)
+{
+  "preferences": {"theme": "dark"},  // Replaced, not merged
+  "profile": {"displayName": "Jane"},  // Unchanged
+  "subscription": {"plan": "premium"}  // Added
+}
+```
+
+<Warning>
+  Shallow merge replaces entire top-level objects. To update nested properties, send the complete parent object.
+</Warning>
+
+## Retrieving Metadata
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:124-136`:
+
+```java
+public static JsonObject getUserMetadata(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String userId
+) {
+    UserMetadataSQLStorage umdStorage = 
+        StorageUtils.getUserMetadataStorage(storage);
+    
+    JsonObject metadata = umdStorage.getUserMetadata(
+        appIdentifier, userId
+    );
+    
+    // Return empty object if no metadata exists
+    return metadata == null ? new JsonObject() : metadata;
+}
+```
+
+### Example: Get User Metadata
+
+```java
+JsonObject metadata = UserMetadata.getUserMetadata(
+    appIdentifier,
+    storage,
+    userId
+);
+
+if (metadata.has("preferences")) {
+    JsonObject preferences = metadata.getAsJsonObject("preferences");
+    String theme = preferences.get("theme").getAsString();
+    System.out.println("User prefers " + theme + " theme");
+}
+
+if (metadata.has("subscription")) {
+    JsonObject subscription = metadata.getAsJsonObject("subscription");
+    String plan = subscription.get("plan").getAsString();
+    System.out.println("User is on " + plan + " plan");
+}
+```
+
+## Bulk Metadata Retrieval
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:138-166`:
+
+Get metadata for multiple users in a single query:
+
+```java
+public static Map<String, JsonObject> getBulkUserMetadata(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    List<String> userIds
+) {
+    if (userIds == null || userIds.isEmpty()) {
+        return new HashMap<>();
+    }
+    
+    UserMetadataSQLStorage umdStorage = 
+        StorageUtils.getUserMetadataStorage(storage);
+    
+    return umdStorage.startTransaction(con -> {
+        Map<String, JsonObject> metadataMap = umdStorage
+            .getMultipleUsersMetadatas_Transaction(
+                appIdentifier, con, userIds
+            );
+        
+        // Ensure all requested userIds are in result
+        Map<String, JsonObject> result = new HashMap<>();
+        for (String userId : userIds) {
+            result.put(userId, metadataMap.get(userId));  // null if not found
+        }
+        
+        return result;
+    });
+}
+```
+
+### Example: Bulk Retrieval
+
+```java
+List<String> userIds = Arrays.asList(
+    "user1", "user2", "user3", "user4", "user5"
+);
+
+Map<String, JsonObject> bulkMetadata = UserMetadata.getBulkUserMetadata(
+    appIdentifier,
+    storage,
+    userIds
+);
+
+for (Map.Entry<String, JsonObject> entry : bulkMetadata.entrySet()) {
+    String userId = entry.getKey();
+    JsonObject metadata = entry.getValue();
+    
+    if (metadata != null) {
+        System.out.println(userId + ": " + metadata);
+    } else {
+        System.out.println(userId + ": No metadata");
+    }
+}
+```
+
+<Note>
+  Bulk retrieval is optimized for performance and should be used when fetching metadata for lists of users.
+</Note>
+
+## Bulk Metadata Update
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:82-116`:
+
+```java
+public static void updateMultipleUsersMetadata(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    Map<String, JsonObject> metadataToUpdateByUserId
+) {
+    UserMetadataSQLStorage umdStorage = 
+        StorageUtils.getUserMetadataStorage(storage);
+    
+    umdStorage.startTransaction(con -> {
+        // Get existing metadata for all users
+        Map<String, JsonObject> originalMetadatas = umdStorage
+            .getMultipleUsersMetadatas_Transaction(
+                appIdentifier, con,
+                new ArrayList<>(metadataToUpdateByUserId.keySet())
+            );
+        
+        // Merge updates with existing data
+        for (Map.Entry<String, JsonObject> entry : originalMetadatas.entrySet()) {
+            String userId = entry.getKey();
+            JsonObject originalMetadata = entry.getValue();
+            
+            JsonObject updatedMetadata = originalMetadata == null 
+                ? new JsonObject() 
+                : originalMetadata;
+            
+            MetadataUtils.shallowMergeMetadataUpdate(
+                updatedMetadata,
+                metadataToUpdateByUserId.get(userId)
+            );
+            
+            metadataToUpdateByUserId.put(userId, updatedMetadata);
+        }
+        
+        // Save all updates
+        umdStorage.setMultipleUsersMetadatas_Transaction(
+            appIdentifier, con, metadataToUpdateByUserId
+        );
+        umdStorage.commitTransaction(con);
+        
+        return null;
+    });
+}
+```
+
+### Example: Bulk Update
+
+```java
+// Prepare updates for multiple users
+Map<String, JsonObject> updates = new HashMap<>();
+
+// User 1: Update subscription
+JsonObject user1Update = new JsonObject();
+JsonObject subscription = new JsonObject();
+subscription.addProperty("plan", "premium");
+subscription.addProperty("expiresAt", System.currentTimeMillis() + 31536000000L);
+user1Update.add("subscription", subscription);
+updates.put("user1", user1Update);
+
+// User 2: Update preferences
+JsonObject user2Update = new JsonObject();
+JsonObject preferences = new JsonObject();
+preferences.addProperty("theme", "dark");
+user2Update.add("preferences", preferences);
+updates.put("user2", user2Update);
+
+// User 3: Update profile
+JsonObject user3Update = new JsonObject();
+JsonObject profile = new JsonObject();
+profile.addProperty("displayName", "Alice Smith");
+user3Update.add("profile", profile);
+updates.put("user3", user3Update);
+
+// Bulk update
+UserMetadata.updateMultipleUsersMetadata(
+    appIdentifier,
+    storage,
+    updates
+);
+
+System.out.println("Updated metadata for " + updates.size() + " users");
+```
+
+## Deleting Metadata
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/usermetadata/UserMetadata.java:174-177`:
+
+```java
+public static void deleteUserMetadata(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String userId
+) {
+    StorageUtils.getUserMetadataStorage(storage)
+        .deleteUserMetadata(appIdentifier, userId);
+}
+```
+
+### Example: Delete Metadata
+
+```java
+// Delete all metadata for user
+UserMetadata.deleteUserMetadata(
+    appIdentifier,
+    storage,
+    userId
+);
+
+System.out.println("User metadata deleted");
+
+// Verify deletion
+JsonObject metadata = UserMetadata.getUserMetadata(
+    appIdentifier,
+    storage,
+    userId
+);
+// Returns empty JsonObject {}
+```
+
+<Note>
+  To delete specific fields, retrieve the metadata, remove the fields, and update with the modified object.
+</Note>
+
+## Common Use Cases
+
+### User Preferences
+
+```java
+// Store preferences
+JsonObject preferences = new JsonObject();
+preferences.addProperty("theme", "dark");
+preferences.addProperty("language", "en");
+preferences.addProperty("timezone", "America/New_York");
+preferences.addProperty("emailNotifications", true);
+preferences.addProperty("pushNotifications", false);
+
+JsonObject update = new JsonObject();
+update.add("preferences", preferences);
+
+UserMetadata.updateUserMetadata(
+    appIdentifier, storage, userId, update
+);
+
+// Retrieve and use
+JsonObject metadata = UserMetadata.getUserMetadata(
+    appIdentifier, storage, userId
+);
+
+if (metadata.has("preferences")) {
+    JsonObject prefs = metadata.getAsJsonObject("preferences");
+    String theme = prefs.get("theme").getAsString();
+    String language = prefs.get("language").getAsString();
+    // Apply preferences to UI
+}
+```
+
+### User Profile
+
+```java
+// Extended profile information
+JsonObject profile = new JsonObject();
+profile.addProperty("displayName", "John Doe");
+profile.addProperty("avatar", "https://cdn.example.com/avatars/user123.jpg");
+profile.addProperty("bio", "Software engineer passionate about distributed systems");
+profile.addProperty("website", "https://johndoe.com");
+profile.addProperty("location", "San Francisco, CA");
+profile.addProperty("company", "Acme Corp");
+
+JsonObject update = new JsonObject();
+update.add("profile", profile);
+
+UserMetadata.updateUserMetadata(
+    appIdentifier, storage, userId, update
+);
+```
+
+### Subscription Management
+
+```java
+// Store subscription details
+JsonObject subscription = new JsonObject();
+subscription.addProperty("plan", "premium");
+subscription.addProperty("status", "active");
+subscription.addProperty("startDate", System.currentTimeMillis());
+subscription.addProperty("expiresAt", System.currentTimeMillis() + 31536000000L);
+subscription.addProperty("autoRenew", true);
+subscription.addProperty("paymentMethod", "card_ending_4242");
+
+JsonObject update = new JsonObject();
+update.add("subscription", subscription);
+
+UserMetadata.updateUserMetadata(
+    appIdentifier, storage, userId, update
+);
+
+// Check subscription status
+JsonObject metadata = UserMetadata.getUserMetadata(
+    appIdentifier, storage, userId
+);
+
+if (metadata.has("subscription")) {
+    JsonObject sub = metadata.getAsJsonObject("subscription");
+    String plan = sub.get("plan").getAsString();
+    String status = sub.get("status").getAsString();
+    long expiresAt = sub.get("expiresAt").getAsLong();
+    
+    if ("active".equals(status) && expiresAt > System.currentTimeMillis()) {
+        // Grant premium features
+    }
+}
+```
+
+### Onboarding Progress
+
+```java
+// Track onboarding steps
+JsonObject onboarding = new JsonObject();
+onboarding.addProperty("completed", false);
+onboarding.addProperty("currentStep", 2);
+onboarding.addProperty("totalSteps", 5);
+onboarding.addProperty("startedAt", System.currentTimeMillis());
+
+JsonObject stepsCompleted = new JsonObject();
+stepsCompleted.addProperty("profileSetup", true);
+stepsCompleted.addProperty("emailVerification", true);
+stepsCompleted.addProperty("preferencesSet", false);
+stepsCompleted.addProperty("firstAction", false);
+stepsCompleted.addProperty("inviteSent", false);
+onboarding.add("steps", stepsCompleted);
+
+JsonObject update = new JsonObject();
+update.add("onboarding", onboarding);
+
+UserMetadata.updateUserMetadata(
+    appIdentifier, storage, userId, update
+);
+```
+
+### Feature Flags
+
+```java
+// Per-user feature flags
+JsonObject features = new JsonObject();
+features.addProperty("betaFeatures", true);
+features.addProperty("earlyAccess", true);
+features.addProperty("experimentalUI", false);
+features.addProperty("advancedMode", true);
+
+JsonObject update = new JsonObject();
+update.add("features", features);
+
+UserMetadata.updateUserMetadata(
+    appIdentifier, storage, userId, update
+);
+
+// Check feature availability
+JsonObject metadata = UserMetadata.getUserMetadata(
+    appIdentifier, storage, userId
+);
+
+if (metadata.has("features")) {
+    JsonObject features = metadata.getAsJsonObject("features");
+    boolean hasBetaAccess = features.get("betaFeatures").getAsBoolean();
+    
+    if (hasBetaAccess) {
+        // Show beta features
+    }
+}
+```
+
+## Metadata in Bulk Import
+
+Metadata can be imported during bulk user import:
+
+```java
+BulkImportUser user = new BulkImportUser();
+
+// Set user metadata
+JsonObject metadata = new JsonObject();
+JsonObject profile = new JsonObject();
+profile.addProperty("displayName", "John Doe");
+profile.addProperty("avatar", "https://example.com/avatar.jpg");
+metadata.add("profile", profile);
+
+JsonObject preferences = new JsonObject();
+preferences.addProperty("theme", "dark");
+metadata.add("preferences", preferences);
+
+user.userMetadata = metadata;
+
+// Add other user data (loginMethods, roles, etc.)
+// ...
+
+// Import
+BulkImport.addUsers(appIdentifier, storage, Arrays.asList(user));
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Structure Data" icon="sitemap">
+    Organize metadata into logical top-level objects
+  </Card>
+  <Card title="Avoid Deep Nesting" icon="layer-group">
+    Keep structure flat due to shallow merge behavior
+  </Card>
+  <Card title="Use Consistent Keys" icon="key">
+    Standardize metadata keys across your application
+  </Card>
+  <Card title="Validate Data" icon="check">
+    Validate metadata before storage
+  </Card>
+  <Card title="Handle Nulls" icon="circle-xmark">
+    Check for null before accessing nested properties
+  </Card>
+  <Card title="Use Bulk Operations" icon="bolt">
+    Prefer bulk methods when working with multiple users
+  </Card>
+</CardGroup>
+
+## Data Size Considerations
+
+<Warning>
+  Metadata is stored as JSON in the database. Keep individual user metadata under 10KB for optimal performance.
+</Warning>
+
+- **Recommended**: User preferences, profile info, settings
+- **Not Recommended**: Large binary data, extensive logs, file contents
+
+For large data:
+- Store references (URLs, IDs) in metadata
+- Keep actual data in your application database or object storage
+
+## Error Handling
+
+```java
+try {
+    JsonObject metadata = UserMetadata.getUserMetadata(
+        appIdentifier, storage, userId
+    );
+    
+    // Safe nested access
+    if (metadata.has("preferences") && 
+        metadata.get("preferences").isJsonObject()) {
+        JsonObject preferences = metadata.getAsJsonObject("preferences");
+        
+        if (preferences.has("theme")) {
+            String theme = preferences.get("theme").getAsString();
+        }
+    }
+    
+} catch (StorageQueryException e) {
+    // Handle database error
+    logger.error("Failed to retrieve metadata", e);
+} catch (JsonParseException e) {
+    // Handle malformed JSON
+    logger.error("Invalid metadata JSON", e);
+}
+```
+
+## Migration Example
+
+```java
+// Migrate from old to new metadata structure
+List<String> allUserIds = getAllUserIds();
+
+for (String userId : allUserIds) {
+    JsonObject metadata = UserMetadata.getUserMetadata(
+        appIdentifier, storage, userId
+    );
+    
+    // Check if old structure exists
+    if (metadata.has("oldField")) {
+        // Transform to new structure
+        JsonObject newStructure = new JsonObject();
+        newStructure.addProperty(
+            "newField", 
+            metadata.get("oldField").getAsString()
+        );
+        
+        JsonObject update = new JsonObject();
+        update.add("newStructure", newStructure);
+        
+        // Update metadata
+        UserMetadata.updateUserMetadata(
+            appIdentifier, storage, userId, update
+        );
+    }
+}
+```
+
+## Related Topics
+
+- [User Management](/concepts/user-management)
+- [Bulk Import](/advanced/bulk-import)
+- [User Roles](/advanced/user-roles)
+- [Multi-Tenancy](/concepts/multitenancy)

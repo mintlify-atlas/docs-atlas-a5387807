@@ -1,0 +1,181 @@
+---
+title: Sign In
+description: Sign in a user with email and password
+---
+
+## Endpoint
+
+```
+POST /recipe/signin
+```
+
+Authenticates a user with their email and password credentials.
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  The user's email address. Will be normalized (lowercased and trimmed) before authentication.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  The status of the request. Either `OK` or `WRONG_CREDENTIALS_ERROR`.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The authenticated user object. Only present when status is `OK`.
+  
+  <Expandable title="User object properties">
+    <ResponseField name="id" type="string">
+      The user's unique identifier (external user ID if mapped, otherwise SuperTokens user ID)
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      The user's email address (normalized)
+    </ResponseField>
+    
+    <ResponseField name="timeJoined" type="number">
+      Timestamp (in milliseconds) when the user was created
+    </ResponseField>
+    
+    <ResponseField name="tenantIds" type="string[]">
+      List of tenant IDs the user belongs to. Only present in CDI >= 3.0
+    </ResponseField>
+    
+    <ResponseField name="loginMethods" type="object[]">
+      Array of login methods associated with the user. Only present in CDI >= 4.0 with account linking enabled.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="recipeUserId" type="string">
+  The recipe-specific user ID for the email/password login method. Only present in CDI >= 4.0.
+</ResponseField>
+
+## Response Examples
+
+<ResponseExample>
+```json Success
+{
+  "status": "OK",
+  "user": {
+    "id": "fa7a0841-b533-4478-95533-0fde890c3d37",
+    "email": "user@example.com",
+    "timeJoined": 1234567890123,
+    "tenantIds": ["public"]
+  },
+  "recipeUserId": "fa7a0841-b533-4478-95533-0fde890c3d37"
+}
+```
+
+```json Wrong Credentials
+{
+  "status": "WRONG_CREDENTIALS_ERROR"
+}
+```
+</ResponseExample>
+
+## Implementation Details
+
+### Email Normalization
+
+The email address is normalized using `Utils.normaliseEmail()` before authentication. This ensures:
+- Case-insensitive email matching
+- Consistent email format
+- Proper user lookup
+
+### Password Verification
+
+The API verifies the password against the stored hash using SuperTokens' password hashing implementation. The password verification:
+- Uses secure hashing algorithms (bcrypt or similar)
+- Protects against timing attacks
+- Returns generic error for invalid credentials
+
+### User ID Mapping
+
+After successful authentication, the API:
+1. Retrieves the user with internal SuperTokens user ID
+2. Populates external user ID mapping if it exists
+3. Returns the external user ID in the response (if mapped)
+4. Uses internal user ID for active user tracking
+
+### Active User Tracking
+
+Successful sign-in automatically updates the user's last active timestamp using the **internal SuperTokens user ID**. This ensures accurate tracking even when external user ID mapping is used.
+
+### Multi-tenancy
+
+This endpoint is tenant-specific:
+- The tenant identifier is extracted from the request
+- The API verifies that Email Password is enabled for the tenant
+- User authentication is scoped to the tenant's storage
+- Only users belonging to the tenant can authenticate
+
+### Recipe User ID
+
+For CDI >= 4.0, the `recipeUserId` field contains the user ID specific to the email/password login method. This is important for account linking scenarios where a user may have multiple login methods:
+- The API searches for the login method matching the email
+- Returns the recipe-specific user ID for that login method
+- This may differ from the primary user ID when accounts are linked
+
+## Error Cases
+
+### WRONG_CREDENTIALS_ERROR
+
+Returned when:
+- Email does not exist
+- Password is incorrect
+- User does not belong to the tenant
+
+```json
+{
+  "status": "WRONG_CREDENTIALS_ERROR"
+}
+```
+
+<Note>
+The API returns the same error for both non-existent users and incorrect passwords to prevent email enumeration attacks.
+</Note>
+
+### Bad Request (400)
+
+Returned when:
+- Required fields are missing
+- Invalid JSON in request body
+
+### Internal Server Error (500)
+
+Returned when:
+- Database query fails
+- Tenant or app not found
+- Permission errors
+- Other internal errors
+
+## Security Considerations
+
+### Credential Enumeration Protection
+
+The API returns `WRONG_CREDENTIALS_ERROR` for both invalid email and invalid password to prevent attackers from determining which emails are registered.
+
+### Rate Limiting
+
+Consider implementing rate limiting at the application or infrastructure level to prevent:
+- Brute force password attacks
+- Credential stuffing attacks
+- Automated abuse
+
+### Password Policy
+
+Password strength requirements should be enforced:
+- At sign-up time (before calling this API)
+- At the application level
+- Using your frontend validation
+
+## Code Reference
+
+Implementation: [SignInAPI.java:57](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/webserver/api/emailpassword/SignInAPI.java#L57)

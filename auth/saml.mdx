@@ -1,0 +1,564 @@
+---
+title: SAML Integration
+description: Enterprise SSO with SAML 2.0 identity providers
+---
+
+## Overview
+
+SAML (Security Assertion Markup Language) 2.0 enables enterprise Single Sign-On (SSO) integration with identity providers like Azure AD, Okta, OneLogin, and Auth0. SuperTokens Core implements both Service Provider (SP) and limited Identity Provider (IdP) capabilities.
+
+**Implementation:** Uses OpenSAML library
+
+**Standards:** SAML 2.0, SAML 2.0 Web Browser SSO Profile
+
+## SAML Client Management
+
+### Create or Update SAML Client
+
+Configure a SAML identity provider.
+
+Implemented in `io.supertokens.saml.SAML.createOrUpdateSAMLClient()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:121.
+
+**API Endpoint:**
+
+**POST** `/recipe/saml/client`
+
+**Request Body:**
+```json
+{
+  "clientId": "azure-ad",
+  "clientSecret": "secret-value",
+  "metadataXML": "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://sts.windows.net/tenant-id/\">...</EntityDescriptor>",
+  "defaultRedirectURI": "https://yourapp.com/callback",
+  "redirectURIs": [
+    "https://yourapp.com/callback",
+    "https://yourapp.com/auth/callback"
+  ],
+  "allowIDPInitiatedLogin": false,
+  "enableRequestSigning": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "clientId": "azure-ad",
+  "ssoLoginURL": "https://login.microsoftonline.com/tenant-id/saml2",
+  "idpEntityId": "https://sts.windows.net/tenant-id/"
+}
+```
+
+**Metadata Parsing:**
+- Extracts IdP SSO URL
+- Extracts IdP entity ID
+- Extracts signing certificate
+- Validates SAML 2.0 compatibility
+
+### List SAML Clients
+
+Implemented in `io.supertokens.saml.SAML.getClients()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:154.
+
+**API Endpoint:**
+
+**GET** `/recipe/saml/clients`
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "clients": [
+    {
+      "clientId": "azure-ad",
+      "ssoLoginURL": "https://login.microsoftonline.com/tenant-id/saml2",
+      "idpEntityId": "https://sts.windows.net/tenant-id/",
+      "allowIDPInitiatedLogin": false,
+      "enableRequestSigning": true
+    }
+  ]
+}
+```
+
+### Remove SAML Client
+
+Implemented in `io.supertokens.saml.SAML.removeSAMLClient()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:164.
+
+**API Endpoint:**
+
+**POST** `/recipe/saml/client/remove`
+
+**Request Body:**
+```json
+{
+  "clientId": "azure-ad"
+}
+```
+
+## SSO Login Flow
+
+### Create SAML Login Redirect
+
+Initiate SAML authentication.
+
+Implemented in `io.supertokens.saml.SAML.createRedirectURL()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:201.
+
+**API Endpoint:**
+
+**POST** `/recipe/saml/authorize`
+
+**Request Body:**
+```json
+{
+  "clientId": "azure-ad",
+  "redirectURI": "https://yourapp.com/callback",
+  "state": "random-csrf-token",
+  "acsURL": "https://yourapi.com/recipe/saml/callback"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "redirectURL": "https://login.microsoftonline.com/tenant-id/saml2?SAMLRequest=base64-encoded-request&RelayState=relay-state-id"
+}
+```
+
+**Process:**
+1. Validate client and redirect URI
+2. Build SAML AuthnRequest
+3. Sign request (if enabled)
+4. Deflate and base64 encode
+5. Generate relay state
+6. Store relay state with client/redirect info
+7. Return redirect URL
+
+### SAML AuthnRequest Structure
+
+Implemented in `io.supertokens.saml.SAML.buildAuthnRequest()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:259.
+
+```xml
+<samlp:AuthnRequest
+    xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+    ID="_unique-request-id"
+    Version="2.0"
+    IssueInstant="2024-01-01T00:00:00Z"
+    Destination="https://idp.example.com/sso"
+    ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+    AssertionConsumerServiceURL="https://yourapi.com/recipe/saml/callback">
+    
+    <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+        https://yourapp.com
+    </saml:Issuer>
+    
+    <samlp:NameIDPolicy AllowCreate="true"/>
+    
+    <!-- Optional: Signature if request signing is enabled -->
+</samlp:AuthnRequest>
+```
+
+### Handle SAML Callback
+
+Process SAML response from IdP.
+
+Implemented in `io.supertokens.saml.SAML.handleCallback()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:417.
+
+**API Endpoint:**
+
+**POST** `/recipe/saml/callback`
+
+**Request Body (Form):**
+```
+SAMLResponse=base64-encoded-saml-response&RelayState=relay-state-id
+```
+
+**Process:**
+1. Decode SAML response
+2. Retrieve client by relay state or IdP entity ID
+3. Verify SAML response signature
+4. Validate timestamps (NotBefore, NotOnOrAfter)
+5. Validate audience restriction
+6. Extract user claims
+7. Generate authorization code
+8. Store claims with code
+9. Redirect to application callback
+
+**Response:**
+```
+HTTP 302 Redirect
+Location: https://yourapp.com/callback?code=authorization-code&state=original-state
+```
+
+### Get User Info
+
+Exchange code for user claims.
+
+Implemented in `io.supertokens.saml.SAML.getUserInfo()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:597.
+
+**API Endpoint:**
+
+**POST** `/recipe/saml/userinfo`
+
+**Request Body:**
+```json
+{
+  "code": "authorization-code",
+  "clientId": "azure-ad"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "sub": "user-unique-id",
+  "email": "user@example.com",
+  "aud": "azure-ad",
+  "claims": {
+    "NameID": ["user@example.com"],
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": ["user@example.com"],
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name": ["John Doe"],
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname": ["John"],
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname": ["Doe"]
+  }
+}
+```
+
+## Service Provider Metadata
+
+Generate SP metadata for IdP configuration.
+
+Implemented in `io.supertokens.saml.SAML.getMetadataXML()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:655.
+
+**API Endpoint:**
+
+**GET** `/recipe/saml/metadata`
+
+**Response:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    entityID="https://yourapp.com"
+    validUntil="2025-01-01T00:00:00Z">
+    
+    <md:SPSSODescriptor
+        protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        
+        <md:KeyDescriptor use="signing">
+            <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                <ds:X509Data>
+                    <ds:X509Certificate>
+                        MIIDXTCCAkWgAwIBAgIJAK...
+                    </ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </md:KeyDescriptor>
+        
+        <md:NameIDFormat>
+            urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+        </md:NameIDFormat>
+    </md:SPSSODescriptor>
+</md:EntityDescriptor>
+```
+
+## SAML Response Verification
+
+### Signature Verification
+
+Implemented in `io.supertokens.saml.SAML.verifySamlResponseSignature()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:363.
+
+**Verification Steps:**
+1. Check Response signature OR
+2. Check Assertion signature
+3. Verify using IdP's public certificate
+4. Validate signature algorithm (RSA-SHA256)
+
+**Supported Signature Locations:**
+- SAML Response level (preferred)
+- SAML Assertion level
+- At least one must be signed
+
+### Timestamp Validation
+
+Implemented in `io.supertokens.saml.SAML.validateSamlResponseTimestamps()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:387.
+
+**Checks:**
+- Response IssueInstant (±5 minutes clock skew)
+- Assertion NotBefore condition
+- Assertion NotOnOrAfter condition
+
+### Audience Validation
+
+Implemented in `io.supertokens.saml.SAML.validateSamlResponseAudience()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:497.
+
+**Process:**
+1. Extract AudienceRestriction from Conditions
+2. Verify audience matches SP entity ID
+3. Reject if audience doesn't match
+
+## Claims Extraction
+
+Implemented in `io.supertokens.saml.SAML.extractAllClaims()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:535.
+
+**Extracted Claims:**
+
+**NameID:**
+```json
+{
+  "NameID": ["user@example.com"],
+  "NameIDFormat": ["urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"]
+}
+```
+
+**Attribute Statements:**
+```json
+{
+  "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": ["user@example.com"],
+  "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name": ["John Doe"],
+  "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname": ["John"],
+  "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname": ["Doe"],
+  "http://schemas.microsoft.com/identity/claims/objectidentifier": ["user-object-id"]
+}
+```
+
+**User Identification:**
+
+The `sub` (subject) field is determined in this order:
+1. NameID value
+2. `http://schemas.microsoft.com/identity/claims/objectidentifier`
+3. `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name`
+
+The `email` field is determined in this order:
+1. `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`
+2. NameID (if it contains '@')
+
+## IdP-Initiated Login
+
+Allow IdP to initiate login without RelayState.
+
+**Configuration:**
+```json
+{
+  "allowIDPInitiatedLogin": true,
+  "defaultRedirectURI": "https://yourapp.com/callback"
+}
+```
+
+**Flow:**
+1. User starts login from IdP portal
+2. IdP sends SAML response without RelayState
+3. SuperTokens identifies client by IdP entity ID
+4. Uses default redirect URI
+5. Generates code and redirects
+
+**Security Note:** IdP-initiated login is less secure than SP-initiated. Only enable if required.
+
+## Request Signing
+
+Sign SAML authentication requests.
+
+**Configuration:**
+```json
+{
+  "enableRequestSigning": true
+}
+```
+
+**Implementation:**
+
+See `io.supertokens.saml.SAML.buildAuthnRequest()` at /home/daytona/workspace/source/src/main/java/io/supertokens/saml/SAML.java:259.
+
+**Process:**
+1. Build AuthnRequest XML
+2. Create RSA-SHA256 signature
+3. Embed X.509 certificate
+4. Add Signature element to request
+
+**Certificate:**
+
+SuperTokens automatically generates and manages SP certificates.
+
+Access via `io.supertokens.saml.SAMLCertificate`.
+
+## Configuration
+
+### Core Settings
+
+```yaml
+# SP entity ID (your application identifier)
+saml_sp_entity_id: "https://yourapp.com"
+
+# ACS URL (assertion consumer service)
+saml_legacy_acs_url: "https://yourapi.com/recipe/saml/callback"
+
+# Relay state validity (15 minutes)
+saml_relay_state_validity: 900000
+
+# Claims validity (10 minutes)
+saml_claims_validity: 600000
+```
+
+### Redirect URIs
+
+All redirect URIs must:
+- Be HTTPS (except localhost)
+- Match exactly (no wildcards)
+- Be pre-registered with client
+
+## Security Features
+
+### Certificate Management
+
+SuperTokens automatically manages SP certificates:
+
+**Implementation:** `io.supertokens.saml.SAMLCertificate`
+
+**Features:**
+- Auto-generated RSA 2048-bit keys
+- Self-signed certificates
+- Stored securely in database
+- Per-tenant certificates
+
+### Relay State
+
+Relay state prevents:
+- CSRF attacks
+- State confusion
+- Replay attacks
+
+**Properties:**
+- Random UUID
+- Time-limited (15 minutes)
+- One-time use
+- Links request to response
+
+### Code Exchange
+
+Authorization codes:
+- Random UUID
+- Time-limited (10 minutes)
+- One-time use
+- Store user claims
+
+## Provider Configuration
+
+### Azure AD (Microsoft Entra ID)
+
+**Setup:**
+1. Create Enterprise Application in Azure AD
+2. Configure SAML SSO
+3. Set Reply URL to your ACS URL
+4. Download Federation Metadata XML
+5. Create SAML client with metadata
+
+**Metadata URL:**
+```
+https://login.microsoftonline.com/{tenant-id}/federationmetadata/2007-06/federationmetadata.xml
+```
+
+**Entity ID:**
+```
+https://sts.windows.net/{tenant-id}/
+```
+
+### Okta
+
+**Setup:**
+1. Create SAML 2.0 App Integration
+2. Configure Single Sign-On URL (ACS URL)
+3. Set Audience URI (SP Entity ID)
+4. Download Metadata
+5. Create SAML client with metadata
+
+**Metadata URL:**
+```
+https://{your-okta-domain}/app/{app-id}/sso/saml/metadata
+```
+
+### OneLogin
+
+**Setup:**
+1. Add SAML Application
+2. Configure ACS (Consumer) URL
+3. Set Entity ID
+4. Download SAML Metadata
+5. Create SAML client with metadata
+
+### Auth0
+
+**Setup:**
+1. Create Regular Web Application
+2. Enable SAML2 Web App addon
+3. Configure Callback URL
+4. Download Metadata
+5. Create SAML client with metadata
+
+## Error Handling
+
+### Common Errors
+
+- `SAMLResponseVerificationFailed`: Signature verification failed
+- `InvalidRelayState`: Relay state not found or expired
+- `InvalidClient`: SAML client not configured
+- `InvalidCode`: Authorization code invalid or expired
+- `IDPInitiatedLoginDisallowed`: IdP-initiated login disabled
+- `MalformedSAMLMetadataXML`: Invalid IdP metadata
+
+## Best Practices
+
+1. **Request signing**: Enable for enhanced security
+2. **Disable IdP-initiated**: Unless specifically required
+3. **HTTPS only**: All URLs must use HTTPS in production
+4. **Short validity**: Keep relay state and code validity short
+5. **Validate audience**: Always verify audience matches
+6. **Check timestamps**: Validate NotBefore and NotOnOrAfter
+7. **Certificate rotation**: Monitor certificate expiry
+8. **Metadata updates**: Keep IdP metadata current
+9. **Error handling**: Log SAML errors for debugging
+10. **Testing**: Test with IdP test environments first
+
+## Debugging
+
+### Verbose Logging
+
+Enable detailed SAML logging:
+
+```yaml
+log_level: DEBUG
+```
+
+### Common Issues
+
+**Signature Verification Failed:**
+- Check IdP certificate is correct
+- Verify clock synchronization
+- Ensure metadata is up to date
+
+**Audience Mismatch:**
+- Verify SP entity ID matches IdP configuration
+- Check case sensitivity
+
+**Timestamp Issues:**
+- Synchronize server clocks (use NTP)
+- Check assertion validity period
+
+## Multi-Tenancy
+
+SAML clients are tenant-specific:
+
+- Each tenant can have different IdP configurations
+- SP certificates are per-tenant
+- Entity IDs can vary by tenant
+- Users are isolated per tenant
+
+## Legacy Support
+
+SuperTokens provides legacy endpoints for backward compatibility:
+
+- `/recipe/saml/legacy/authorize`
+- `/recipe/saml/legacy/callback`
+- `/recipe/saml/legacy/token`
+- `/recipe/saml/legacy/userinfo`
+
+These endpoints provide OAuth 2.0-style flow for SAML.

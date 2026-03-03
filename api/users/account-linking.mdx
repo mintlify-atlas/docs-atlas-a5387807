@@ -1,0 +1,323 @@
+---
+title: Account Linking
+description: Link and unlink user accounts across authentication methods
+---
+
+## Overview
+
+Account linking allows you to connect multiple authentication methods (login methods) to a single user account. For example, a user could sign up with email/password and later link their Google account to the same profile.
+
+## POST /recipe/accountlinking/user/link
+
+Link a recipe user to a primary user account.
+
+### Request Body
+
+```json
+{
+  "recipeUserId": "string",
+  "primaryUserId": "string"
+}
+```
+
+### Parameters
+
+- **recipeUserId** (string, required): The user ID of the account to link (e.g., a Google login user ID)
+- **primaryUserId** (string, required): The primary user ID to link to
+
+### Response
+
+#### Success Response
+
+```json
+{
+  "status": "OK",
+  "accountsAlreadyLinked": "boolean",
+  "user": {
+    "id": "string",
+    "timeJoined": "number",
+    "isPrimaryUser": true,
+    "emails": ["string"],
+    "phoneNumbers": ["string"],
+    "thirdParty": [],
+    "loginMethods": [
+      {
+        "recipeId": "string",
+        "recipeUserId": "string",
+        "timeJoined": "number",
+        "verified": "boolean"
+      }
+    ],
+    "tenantIds": ["string"]
+  }
+}
+```
+
+#### Error Responses
+
+**Account Info Already Associated**
+
+```json
+{
+  "status": "ACCOUNT_INFO_ALREADY_ASSOCIATED_WITH_ANOTHER_PRIMARY_USER_ID_ERROR",
+  "primaryUserId": "string",
+  "description": "string"
+}
+```
+
+**Recipe User Already Linked**
+
+```json
+{
+  "status": "RECIPE_USER_ID_ALREADY_LINKED_WITH_ANOTHER_PRIMARY_USER_ID_ERROR",
+  "primaryUserId": "string",
+  "description": "string",
+  "user": { /* user object */ }
+}
+```
+
+**Not a Primary User**
+
+```json
+{
+  "status": "INPUT_USER_IS_NOT_A_PRIMARY_USER"
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/accountlinking/user/link \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipeUserId": "google-user-id-123",
+    "primaryUserId": "primary-user-id-456"
+  }'
+```
+
+## GET /recipe/accountlinking/user/link/check
+
+Check if two accounts can be linked without actually linking them.
+
+### Query Parameters
+
+- **recipeUserId** (string, required): The user ID to potentially link
+- **primaryUserId** (string, required): The primary user ID to potentially link to
+
+### Response
+
+#### Success Response
+
+```json
+{
+  "status": "OK",
+  "accountsAlreadyLinked": "boolean"
+}
+```
+
+#### Error Responses
+
+Same error responses as the link endpoint (see above).
+
+### Example
+
+```bash
+curl -X GET "https://your-api-domain.com/recipe/accountlinking/user/link/check?recipeUserId=google-user-id-123&primaryUserId=primary-user-id-456"
+```
+
+## POST /recipe/accountlinking/user/unlink
+
+Unlink a recipe user from its primary user account.
+
+### Request Body
+
+```json
+{
+  "recipeUserId": "string"
+}
+```
+
+### Parameters
+
+- **recipeUserId** (string, required): The recipe user ID to unlink
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "wasRecipeUserDeleted": "boolean",
+  "wasLinked": "boolean"
+}
+```
+
+### Response Fields
+
+- **wasRecipeUserDeleted**: `true` if the recipe user was deleted after unlinking
+- **wasLinked**: `true` if the user was linked before this operation, `false` if it wasn't linked
+
+### Example
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/accountlinking/user/unlink \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipeUserId": "google-user-id-123"
+  }'
+```
+
+## Implementation Details
+
+- Link API located in: `src/main/java/io/supertokens/webserver/api/accountlinking/LinkAccountsAPI.java:47`
+- Can Link API located in: `src/main/java/io/supertokens/webserver/api/accountlinking/CanLinkAccountsAPI.java:44`
+- Unlink API located in: `src/main/java/io/supertokens/webserver/api/accountlinking/UnlinkAccountAPI.java:40`
+- Recipe: `ACCOUNT_LINKING`
+- All endpoints are app-specific
+- Support user ID mapping (accepts external user IDs)
+- Users must be in the same database/user pool to be linked
+- Active user timestamps are updated when accounts are linked
+
+## Account Linking Rules
+
+### Prerequisites
+
+1. The `primaryUserId` must belong to a primary user
+2. The `recipeUserId` must not already be linked to another primary user
+3. The account info (email/phone) must not already be associated with another primary user
+4. Both users must be in the same user pool (same database)
+
+### Making a User Primary
+
+Before linking, ensure the primary user is marked as a primary user:
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/accountlinking/user/primary \
+  -H "Content-Type: application/json" \
+  -d '{"recipeUserId": "user-to-make-primary"}'
+```
+
+## Use Cases
+
+### Link Social Login to Existing Account
+
+User signs up with email/password, later adds Google login:
+
+```bash
+# 1. User logs in with Google (creates new recipe user)
+# 2. Link Google account to existing email/password account
+curl -X POST https://your-api-domain.com/recipe/accountlinking/user/link \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipeUserId": "google-recipe-user-id",
+    "primaryUserId": "email-password-user-id"
+  }'
+```
+
+### Check Before Linking
+
+Validate accounts can be linked before showing "Link Account" button:
+
+```bash
+curl -X GET "https://your-api-domain.com/recipe/accountlinking/user/link/check?recipeUserId=google-id&primaryUserId=primary-id"
+```
+
+### Remove Linked Social Login
+
+User wants to remove Google login but keep email/password:
+
+```bash
+curl -X POST https://your-api-domain.com/recipe/accountlinking/user/unlink \
+  -H "Content-Type: application/json" \
+  -d '{"recipeUserId": "google-recipe-user-id"}'
+```
+
+### Merge Duplicate Accounts
+
+User accidentally created two accounts with different emails:
+
+```bash
+# 1. Make one account primary
+curl -X POST https://your-api-domain.com/recipe/accountlinking/user/primary \
+  -d '{"recipeUserId": "account-1-id"}'
+
+# 2. Link the second account
+curl -X POST https://your-api-domain.com/recipe/accountlinking/user/link \
+  -d '{
+    "recipeUserId": "account-2-id",
+    "primaryUserId": "account-1-id"
+  }'
+```
+
+## Error Handling
+
+### Account Info Conflict
+
+If the recipe user's email is already associated with another primary user:
+
+```json
+{
+  "status": "ACCOUNT_INFO_ALREADY_ASSOCIATED_WITH_ANOTHER_PRIMARY_USER_ID_ERROR",
+  "primaryUserId": "conflicting-primary-user-id",
+  "description": "The email user@example.com is already associated with another user"
+}
+```
+
+### Already Linked
+
+If the recipe user is already linked to a different primary user:
+
+```json
+{
+  "status": "RECIPE_USER_ID_ALREADY_LINKED_WITH_ANOTHER_PRIMARY_USER_ID_ERROR",
+  "primaryUserId": "existing-primary-user-id",
+  "description": "This account is already linked",
+  "user": { /* current primary user */ }
+}
+```
+
+### Not a Primary User
+
+If you try to link to a user that isn't a primary user:
+
+```json
+{
+  "status": "INPUT_USER_IS_NOT_A_PRIMARY_USER"
+}
+```
+
+Solution: Convert the user to a primary user first.
+
+### Different User Pools
+
+If users are in different databases:
+
+```json
+{
+  "error": "Cannot link users that are parts of different databases. Different pool IDs: pool1 AND pool2"
+}
+```
+
+## Best Practices
+
+1. **Check before linking**: Use the `/link/check` endpoint before showing link UI
+2. **Verify ownership**: Ensure the user owns both accounts (e.g., verify email)
+3. **Primary user selection**: Choose the user with more data/history as primary
+4. **Handle conflicts**: Provide clear error messages when linking fails
+5. **Session management**: Invalidate old sessions after linking
+6. **User communication**: Notify users when accounts are linked
+7. **Audit trail**: Log account linking operations for security
+
+## Security Considerations
+
+- Verify the user owns both accounts before linking
+- Require re-authentication before linking accounts
+- Log all account linking operations
+- Implement rate limiting on link operations
+- Consider requiring MFA for account linking
+- Notify users via email when accounts are linked
+
+## Related Endpoints
+
+- [Get User by ID](/api/users/get-by-id) - View all linked accounts for a user
+- [Create Primary User](/api/users/account-linking) - Convert user to primary user
+- [Delete User](/api/users/delete) - Delete user and optionally all linked accounts

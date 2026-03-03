@@ -1,0 +1,295 @@
+---
+title: List Users
+description: Get a paginated list of users with filtering and search
+---
+
+## GET /users
+
+Retrieve a paginated list of users with optional filtering by recipe, search, and time ordering.
+
+## Query Parameters
+
+- **includeRecipeIds** (string, optional): Comma-separated list of recipe IDs to filter by (e.g., "emailpassword,thirdparty")
+- **limit** (number, optional): Number of users to return per page. Default: 100, Max: 1000 (500 with search)
+- **paginationToken** (string, optional): Token from previous response for pagination
+- **timeJoinedOrder** (string, optional): Sort order by join time. Values: "ASC" (default) or "DESC"
+- **email** (string, optional): Semicolon-separated list of emails to search for
+- **phone** (string, optional): Semicolon-separated list of phone numbers to search for
+- **provider** (string, optional): Semicolon-separated list of third-party provider IDs to search for
+
+## Response
+
+```json
+{
+  "status": "OK",
+  "users": [
+    {
+      "id": "string",
+      "timeJoined": "number",
+      "isPrimaryUser": "boolean",
+      "emails": ["string"],
+      "phoneNumbers": ["string"],
+      "thirdParty": [],
+      "loginMethods": [
+        {
+          "recipeId": "string",
+          "recipeUserId": "string",
+          "timeJoined": "number",
+          "verified": "boolean",
+          "email": "string (optional)",
+          "phoneNumber": "string (optional)",
+          "thirdParty": {
+            "id": "string",
+            "userId": "string"
+          } (optional)
+        }
+      ],
+      "tenantIds": ["string"]
+    }
+  ],
+  "nextPaginationToken": "string (optional)"
+}
+```
+
+### Response Fields
+
+- **status** (string): "OK" for success
+- **users** (array): List of user objects (see [Get User by ID](/api/users/get-by-id) for user object structure)
+- **nextPaginationToken** (string, optional): Token to fetch the next page. Absent if this is the last page
+
+## Example Usage
+
+### List All Users
+
+```bash
+curl -X GET "https://your-api-domain.com/users?limit=50"
+```
+
+### List Email/Password Users Only
+
+```bash
+curl -X GET "https://your-api-domain.com/users?includeRecipeIds=emailpassword&limit=100"
+```
+
+### List Multiple Recipe Users
+
+```bash
+curl -X GET "https://your-api-domain.com/users?includeRecipeIds=emailpassword,thirdparty&limit=100"
+```
+
+### Search by Email
+
+```bash
+curl -X GET "https://your-api-domain.com/users?email=user@example.com"
+```
+
+### Search Multiple Emails
+
+```bash
+curl -X GET "https://your-api-domain.com/users?email=user1@example.com;user2@example.com"
+```
+
+### Search by Phone Number
+
+```bash
+curl -X GET "https://your-api-domain.com/users?phone=%2B1234567890"
+```
+
+### Search by Third-party Provider
+
+```bash
+curl -X GET "https://your-api-domain.com/users?provider=google"
+```
+
+### Combined Search
+
+```bash
+curl -X GET "https://your-api-domain.com/users?email=user@example.com&provider=google&includeRecipeIds=thirdparty"
+```
+
+### Pagination
+
+```bash
+# First page
+curl -X GET "https://your-api-domain.com/users?limit=50"
+
+# Next page using token from previous response
+curl -X GET "https://your-api-domain.com/users?limit=50&paginationToken=eyJ0aW1lSm9pbmVkIj..."
+```
+
+### Sort by Join Time (Newest First)
+
+```bash
+curl -X GET "https://your-api-domain.com/users?timeJoinedOrder=DESC&limit=50"
+```
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/core/UsersAPI.java:47`
+- This is a tenant-specific API
+- Returns users within the current tenant context
+- Search tags (email, phone, provider) are normalized to lowercase and trimmed
+- Multiple search tags are separated by semicolons
+- External user IDs are populated when user ID mapping is configured
+
+## Recipe IDs
+
+Available recipe IDs for filtering:
+
+- **emailpassword**: Email and password authentication
+- **passwordless**: Passwordless (magic link or OTP) authentication
+- **thirdparty**: Social login (Google, Facebook, etc.)
+
+## Pagination
+
+The pagination token is a Base64-encoded JSON object containing:
+
+- The last user's join time
+- The last user's ID
+- Sort order and other parameters
+
+To paginate through all users:
+
+1. Make initial request without `paginationToken`
+2. If response includes `nextPaginationToken`, make another request with that token
+3. Repeat until response doesn't include `nextPaginationToken`
+
+### Pagination Example
+
+```javascript
+let paginationToken = null;
+let allUsers = [];
+
+do {
+  const url = paginationToken 
+    ? `/users?limit=100&paginationToken=${paginationToken}`
+    : `/users?limit=100`;
+  
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  allUsers.push(...data.users);
+  paginationToken = data.nextPaginationToken;
+} while (paginationToken);
+
+console.log(`Fetched ${allUsers.length} users`);
+```
+
+## Search Behavior
+
+### Email Search
+
+- Case-insensitive
+- Searches across all email fields in user login methods
+- Partial matches are not supported (must be exact email)
+- Multiple emails can be searched using semicolon separator
+
+### Phone Number Search
+
+- Exact match required
+- Must be URL-encoded (e.g., `+` becomes `%2B`)
+- Searches across all phone numbers in user login methods
+- Multiple phone numbers can be searched using semicolon separator
+
+### Provider Search
+
+- Searches for users who authenticated with specific third-party providers
+- Provider IDs: "google", "facebook", "github", "apple", etc.
+- Case-insensitive
+- Multiple providers can be searched using semicolon separator
+
+## Limits
+
+- **Default limit**: 100 users per page
+- **Maximum limit without search**: 1000 users per page
+- **Maximum limit with search**: Determined by AuthRecipe.USER_PAGINATION_LIMIT
+- **Minimum limit**: 1 user per page
+
+## Use Cases
+
+### Admin Dashboard User List
+
+```bash
+curl -X GET "https://your-api-domain.com/users?limit=50&timeJoinedOrder=DESC"
+```
+
+### Find User by Email
+
+```bash
+curl -X GET "https://your-api-domain.com/users?email=support@example.com"
+```
+
+### Export All Users
+
+```bash
+#!/bin/bash
+TOKEN=""
+while true; do
+  if [ -z "$TOKEN" ]; then
+    RESPONSE=$(curl -s "https://your-api-domain.com/users?limit=1000")
+  else
+    RESPONSE=$(curl -s "https://your-api-domain.com/users?limit=1000&paginationToken=$TOKEN")
+  fi
+  
+  echo "$RESPONSE" | jq '.users[]' >> all_users.json
+  
+  TOKEN=$(echo "$RESPONSE" | jq -r '.nextPaginationToken // empty')
+  [ -z "$TOKEN" ] && break
+done
+```
+
+### Count Users by Recipe
+
+```bash
+# Count email/password users
+curl -X GET "https://your-api-domain.com/users?includeRecipeIds=emailpassword&limit=1000" \
+  | jq '.users | length'
+```
+
+## Error Responses
+
+### Invalid Recipe ID
+
+```json
+{
+  "error": "Unknown recipe ID: invalid_recipe"
+}
+```
+
+### Invalid Time Joined Order
+
+```json
+{
+  "error": "timeJoinedOrder can be either ASC OR DESC"
+}
+```
+
+### Invalid Limit
+
+```json
+{
+  "error": "max limit allowed is 1000"
+}
+```
+
+### Invalid Pagination Token
+
+```json
+{
+  "error": "invalid pagination token"
+}
+```
+
+## Best Practices
+
+1. Use appropriate page sizes based on your use case (smaller for UI, larger for exports)
+2. Implement search on the backend rather than fetching all users
+3. Cache user lists when appropriate
+4. Use `includeRecipeIds` to filter by authentication method
+5. Handle pagination tokens properly - don't hardcode them
+6. Use `timeJoinedOrder=DESC` to show newest users first
+
+## Related Endpoints
+
+- [Get User by ID](/api/users/get-by-id) - Get detailed information about a specific user
+- [Delete User](/api/users/delete) - Delete a user

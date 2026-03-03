@@ -1,0 +1,203 @@
+---
+title: Delete User
+description: Delete a user and optionally all linked accounts
+---
+
+## POST /user/remove
+
+Delete a user from SuperTokens. Optionally delete all linked accounts as well.
+
+## Request Body
+
+```json
+{
+  "userId": "string",
+  "removeAllLinkedAccounts": "boolean (optional)"
+}
+```
+
+### Parameters
+
+- **userId** (string, required): The user ID to delete. Can be either a SuperTokens user ID or an external user ID (if user ID mapping is configured)
+
+- **removeAllLinkedAccounts** (boolean, optional): Whether to delete all linked accounts. Defaults to `true`
+  - `true`: Deletes the user and all linked login methods (when account linking is enabled)
+  - `false`: Deletes only the specified user/login method
+
+## Response
+
+### Success Response
+
+```json
+{
+  "status": "OK"
+}
+```
+
+The response is always successful, even if the user doesn't exist.
+
+## Example Usage
+
+### Delete User and All Linked Accounts
+
+```bash
+curl -X POST https://your-api-domain.com/user/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "fa3b62b4-b06e-44bf-9f6e-e2b45d6c4c1a"
+  }'
+```
+
+### Delete Only Specific Login Method
+
+```bash
+curl -X POST https://your-api-domain.com/user/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "fa3b62b4-b06e-44bf-9f6e-e2b45d6c4c1a",
+    "removeAllLinkedAccounts": false
+  }'
+```
+
+### Delete User by External ID
+
+If you have user ID mapping configured:
+
+```bash
+curl -X POST https://your-api-domain.com/user/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "external-user-123",
+    "removeAllLinkedAccounts": true
+  }'
+```
+
+## Behavior Details
+
+### Account Linking
+
+When account linking is enabled:
+
+- **removeAllLinkedAccounts: true** (default):
+  - Deletes the primary user
+  - Deletes all recipe users linked to the primary user
+  - Removes all sessions for all linked accounts
+  - Removes all metadata, roles, and permissions
+
+- **removeAllLinkedAccounts: false**:
+  - Deletes only the specified recipe user
+  - If the recipe user is linked to a primary user, it's unlinked first
+  - Other linked accounts remain intact
+
+### Data Cleanup
+
+When a user is deleted, the following data is also removed:
+
+- User sessions
+- User metadata
+- User roles and permissions
+- Email verification tokens
+- Password reset tokens
+- User ID mappings
+- Third-party user associations
+- Passwordless codes and devices
+
+### Tenant Association
+
+If the user is associated with multiple tenants:
+
+- The user is removed from all tenants
+- Tenant-specific data is cleaned up
+- Other users in those tenants are not affected
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/core/DeleteUserAPI.java:37`
+- This is an app-specific API
+- The API enforces public tenant access for app-specific operations
+- Supports user ID mapping: accepts both SuperTokens IDs and external IDs
+- If the user doesn't exist, the operation succeeds silently (idempotent)
+- Deletion is performed within a transaction for data consistency
+
+## Idempotent Operation
+
+This endpoint is idempotent:
+
+- Calling it multiple times with the same user ID has the same effect as calling it once
+- No error is returned if the user doesn't exist
+- Always returns `{"status": "OK"}`
+
+## Use Cases
+
+### GDPR Compliance
+
+Delete user data when requested:
+
+```bash
+curl -X POST https://your-api-domain.com/user/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user-to-forget",
+    "removeAllLinkedAccounts": true
+  }'
+```
+
+### Account Closure
+
+Remove user account when they close their account:
+
+```bash
+# Delete user and clean up all data
+curl -X POST https://your-api-domain.com/user/remove \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "closing-user-id"}'
+```
+
+### Unlinking Login Methods
+
+Remove a specific login method without deleting the user:
+
+```bash
+# Remove Google login but keep email/password
+curl -X POST https://your-api-domain.com/user/remove \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "google-recipe-user-id",
+    "removeAllLinkedAccounts": false
+  }'
+```
+
+### Test Data Cleanup
+
+Clean up test users after testing:
+
+```bash
+for userId in test-user-1 test-user-2 test-user-3; do
+  curl -X POST https://your-api-domain.com/user/remove \
+    -H "Content-Type: application/json" \
+    -d "{\"userId\": \"$userId\"}"
+done
+```
+
+## Security Considerations
+
+1. **Authorization**: Ensure proper authorization before calling this endpoint
+2. **Audit Logging**: Log user deletions for compliance and security auditing
+3. **Confirmation**: Implement a confirmation step in your UI before deletion
+4. **Backup**: Consider backing up user data before deletion
+5. **Associated Data**: Handle cleanup of user data in your own application database
+
+## Best Practices
+
+1. Always use `removeAllLinkedAccounts: true` unless you have a specific reason not to
+2. Implement a "soft delete" in your application if you need to retain data
+3. Clean up user data in your own database after deleting from SuperTokens
+4. Revoke any API keys or access tokens issued to the user
+5. Notify the user (if applicable) that their account has been deleted
+6. Document your data retention policy
+
+## Related Endpoints
+
+- [Get User by ID](/api/users/get-by-id) - Retrieve user information before deletion
+- [List Users](/api/users/list) - List users to find accounts to delete
+- [Unlink Account](/api/users/account-linking) - Unlink accounts without deletion

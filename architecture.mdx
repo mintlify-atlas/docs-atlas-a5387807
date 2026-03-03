@@ -1,0 +1,356 @@
+---
+title: Architecture
+description: Understanding the SuperTokens three-tier architecture and how components interact
+---
+
+# SuperTokens architecture
+
+SuperTokens uses a three-tier architecture designed to provide maximum flexibility, security, and developer experience. This page explains how the components work together.
+
+## Overview
+
+The SuperTokens architecture consists of three main components:
+
+```
+┌─────────────────┐
+│  Frontend SDK   │  (React, Vue, Angular, Vanilla JS, Mobile)
+│                 │
+│  • Session mgmt │
+│  • UI components│
+└────────┬────────┘
+         │ HTTP
+         ▼
+┌─────────────────┐
+│  Backend SDK    │  (Node.js, Python, Go, etc.)
+│                 │
+│  • Auth APIs    │
+│  • Middleware   │
+└────────┬────────┘
+         │ HTTP
+         ▼
+┌─────────────────┐
+│ SuperTokens Core│  (This project)
+│                 │
+│  • Auth logic   │
+│  • Database ops │
+└────────┬────────┘
+         │
+         ▼
+    ┌─────────┐
+    │ Database│
+    └─────────┘
+```
+
+<Note>
+This documentation covers **SuperTokens Core** - the HTTP service that provides the authentication logic and database operations.
+</Note>
+
+## Component details
+
+### 1. Frontend SDK
+
+**Purpose**: Manages client-side authentication state and provides UI components
+
+**Responsibilities**:
+- Stores session tokens (access and refresh tokens)
+- Automatically refreshes expired access tokens
+- Renders pre-built UI components for login, signup, etc.
+- Handles CSRF protection
+- Communicates with your Backend SDK
+
+**Available for**:
+- React.js
+- React Native
+- Vue.js
+- Angular
+- Vanilla JavaScript
+- iOS (Swift)
+- Android (Kotlin)
+- Flutter
+
+### 2. Backend SDK
+
+**Purpose**: Exposes authentication APIs for your frontend to call
+
+**Responsibilities**:
+- Provides authentication endpoints (signup, signin, signout, etc.)
+- Session verification middleware
+- Communicates with SuperTokens Core for auth operations
+- Integrates with your existing backend framework
+- Handles API key authentication with Core
+
+**Available for**:
+- Node.js (Express, Fastify, Hapi, Koa, Loopback, AWS Lambda)
+- Python (FastAPI, Flask, Django)
+- Go (net/http, Gin, Mux)
+- .NET (coming soon)
+
+### 3. SuperTokens Core (this project)
+
+**Purpose**: Centralized authentication service with database management
+
+**Responsibilities**:
+- Core authentication logic
+- User database operations
+- Session creation and verification
+- Token signing and rotation
+- Password hashing
+- Multi-tenancy management
+- Recipe (authentication method) implementation
+
+**Deployment options**:
+- Self-hosted (Docker, binary, from source)
+- Managed hosting (SuperTokens cloud)
+
+**Communication**: REST API over HTTP/HTTPS (default port 3567)
+
+**Source code**: [`~/workspace/source/src/main/java/io/supertokens/Main.java:66`](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/Main.java#L66)
+
+### 4. Database
+
+**Purpose**: Persistent storage for users, sessions, and authentication data
+
+**Supported databases**:
+- PostgreSQL 11+
+- MySQL 5.7+
+- MongoDB 4.2+
+- SQLite (development only)
+
+**Schema management**: Automatic migrations handled by Core on startup
+
+## Request flow
+
+Let's trace a typical authentication request through the architecture:
+
+### Sign-up flow
+
+<Steps>
+  <Step title="User submits sign-up form">
+    Frontend SDK captures email and password from the UI component
+  </Step>
+  
+  <Step title="Frontend calls Backend API">
+    ```bash
+    POST https://your-api.com/auth/signup
+    Content-Type: application/json
+
+    {"email": "user@example.com", "password": "SecurePass123"}
+    ```
+  </Step>
+  
+  <Step title="Backend SDK forwards to Core">
+    ```bash
+    POST http://localhost:3567/recipe/signup
+    api-key: your-api-key
+    Content-Type: application/json
+
+    {"email": "user@example.com", "password": "SecurePass123"}
+    ```
+  </Step>
+  
+  <Step title="Core processes request">
+    - Validates email format
+    - Hashes password (BCrypt or Argon2)
+    - Checks for duplicate user
+    - Creates user in database
+    - Returns user ID and status
+  </Step>
+  
+  <Step title="Backend creates session">
+    Backend SDK calls Core to create a session for the new user
+  </Step>
+  
+  <Step title="Session tokens returned">
+    Backend sends access token, refresh token, and anti-CSRF token to frontend
+  </Step>
+</Steps>
+
+### Session verification flow
+
+<Steps>
+  <Step title="Frontend makes authenticated request">
+    Frontend SDK automatically includes access token in request headers
+  </Step>
+  
+  <Step title="Backend middleware verifies token">
+    Most session verification happens **locally in the Backend SDK** without calling Core. The SDK verifies the JWT signature using cached public keys.
+  </Step>
+  
+  <Step title="Core contacted only when needed">
+    Core is only contacted for:
+    - Fetching new signing keys (when they rotate)
+    - Database-based verification (if `checkDatabase: true`)
+    - Token refresh operations
+    - Session revocation
+  </Step>
+</Steps>
+
+<Note>
+**Performance optimization**: Session verification is designed to be extremely fast. In most cases, the Backend SDK verifies JWTs locally without contacting SuperTokens Core, enabling the Core to handle hundreds of thousands of users with a single instance.
+</Note>
+
+## Deployment models
+
+### Model 1: Self-hosted Core
+
+```
+┌──────────────────────────────────────────┐
+│ Your infrastructure                      │
+│                                          │
+│  ┌────────────┐      ┌─────────────┐    │
+│  │  Backend   │─────▶│ SuperTokens │    │
+│  │   + SDK    │      │    Core     │    │
+│  └────────────┘      └──────┬──────┘    │
+│                              │           │
+│                              ▼           │
+│                        ┌──────────┐      │
+│                        │ Database │      │
+│                        └──────────┘      │
+└──────────────────────────────────────────┘
+```
+
+**Benefits**:
+- Complete data control
+- No external dependencies
+- Works in air-gapped environments
+- Custom compliance requirements
+
+### Model 2: Managed Core (SuperTokens cloud)
+
+```
+┌────────────────────┐      ┌──────────────────┐
+│ Your infrastructure│      │ SuperTokens Cloud│
+│                    │      │                  │
+│  ┌────────────┐    │      │ ┌─────────────┐  │
+│  │  Backend   │────┼─────▶│ │    Core     │  │
+│  │   + SDK    │    │      │ └──────┬──────┘  │
+│  └────────────┘    │      │        │         │
+│                    │      │        ▼         │
+│                    │      │  ┌──────────┐    │
+│                    │      │  │ Database │    │
+│                    │      │  └──────────┘    │
+└────────────────────┘      └──────────────────┘
+```
+
+**Benefits**:
+- Managed infrastructure
+- Automatic scaling
+- High availability
+- Regular updates
+
+## Scaling strategies
+
+### Horizontal scaling
+
+Multiple Core instances can run behind a load balancer:
+
+```
+                   ┌─────────────┐
+                   │Load Balancer│
+                   └──────┬──────┘
+                          │
+        ┌─────────────────┼─────────────────┐
+        │                 │                 │
+        ▼                 ▼                 ▼
+   ┌────────┐        ┌────────┐       ┌────────┐
+   │ Core 1 │        │ Core 2 │       │ Core 3 │
+   └───┬────┘        └───┬────┘       └───┬────┘
+       │                 │                 │
+       └─────────────────┼─────────────────┘
+                         ▼
+                  ┌─────────────┐
+                  │  Database   │
+                  │  (Primary)  │
+                  └─────────────┘
+```
+
+<Note>
+All Core instances must connect to the same database. The database becomes the single source of truth for all authentication state.
+</Note>
+
+### Database scaling
+
+**Read replicas**: For read-heavy workloads
+```
+┌──────────────┐
+│   Primary    │───────┐
+│  (Writes)    │       │ Replication
+└──────────────┘       ▼
+                  ┌──────────────┐
+                  │   Replica    │
+                  │   (Reads)    │
+                  └──────────────┘
+```
+
+**Connection pooling**: Configure in `config.yaml`
+```yaml
+postgresql_connection_pool_size: 10
+```
+
+## Multi-tenancy architecture
+
+SuperTokens Core has built-in multi-tenancy support with a hierarchical structure:
+
+```
+Connection URI Identifier (CUD)
+└── App
+    └── Tenant
+        └── Users
+```
+
+**Example URL patterns**:
+- Single tenant: `http://localhost:3567/recipe/signup`
+- Multi-tenant: `http://localhost:3567/appid-abc/tenantid-xyz/recipe/signup`
+
+See [Multi-tenancy concepts](/concepts/multitenancy) for details.
+
+## Security considerations
+
+### Network security
+
+<Warning>
+**Important**: The connection between your Backend SDK and SuperTokens Core should be on a private network or use HTTPS with API key authentication. Never expose SuperTokens Core directly to the internet.
+</Warning>
+
+**Recommended setup**:
+```
+Internet ──▶ [Firewall] ──▶ [Backend SDK] ──▶ [Private Network] ──▶ [Core]
+```
+
+### API key authentication
+
+Configure API keys in `config.yaml`:
+```yaml
+api_keys: key1,key2,key3
+```
+
+Backend SDK must include the API key in requests:
+```bash
+api-key: your-api-key-here
+```
+
+### Token signing
+
+Core uses dynamic signing key rotation by default:
+- New signing keys generated every 168 hours (configurable)
+- Old keys retained for verification
+- JWT tokens include `kid` (key ID) for verification
+
+Implementation: [`~/workspace/source/src/main/java/io/supertokens/signingkeys/SigningKeys.java`](https://github.com/supertokens/supertokens-core/blob/master/src/main/java/io/supertokens/signingkeys/SigningKeys.java)
+
+## Learn more
+
+<CardGroup cols={2}>
+  <Card title="Session management" icon="key" href="/concepts/sessions">
+    Deep dive into how sessions work
+  </Card>
+  <Card title="Multi-tenancy" icon="sitemap" href="/concepts/multitenancy">
+    Learn about apps and tenants
+  </Card>
+  <Card title="Self-hosting" icon="server" href="/deployment/self-hosting">
+    Deploy SuperTokens Core
+  </Card>
+  <Card title="API reference" icon="code" href="/api/core/overview">
+    Explore the HTTP APIs
+  </Card>
+</CardGroup>

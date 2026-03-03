@@ -1,0 +1,250 @@
+---
+title: Tenant Management
+description: Create, update, and manage tenants in SuperTokens
+---
+
+## Overview
+
+Tenants provide data isolation within an application. Each tenant can have its own authentication configuration and user base.
+
+## PUT /recipe/multitenancy/tenant
+
+Create or update a tenant configuration.
+
+### Request Body
+
+```json
+{
+  "tenantId": "string (optional)",
+  "emailPasswordEnabled": "boolean (optional)",
+  "passwordlessEnabled": "boolean (optional)",
+  "thirdPartyEnabled": "boolean (optional)",
+  "coreConfig": {
+    // Tenant-specific core configuration
+  },
+  "firstFactors": ["string"] (optional),
+  "requiredSecondaryFactors": ["string"] (optional)
+}
+```
+
+### Parameters
+
+- **tenantId** (string, optional): Unique identifier for the tenant. If not provided, defaults to "public"
+- **emailPasswordEnabled** (boolean, optional): Enable email/password authentication
+- **passwordlessEnabled** (boolean, optional): Enable passwordless authentication
+- **thirdPartyEnabled** (boolean, optional): Enable third-party (social) authentication
+- **coreConfig** (object, optional): Tenant-specific configuration overrides
+- **firstFactors** (array, optional): List of allowed first-factor authentication methods
+- **requiredSecondaryFactors** (array, optional): List of required second-factor authentication methods
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "createdNew": "boolean"
+}
+```
+
+- **createdNew**: `true` if a new tenant was created, `false` if existing tenant was updated
+
+### Example
+
+```bash
+curl -X PUT https://your-api-domain.com/recipe/multitenancy/tenant \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenantId": "company-a",
+    "emailPasswordEnabled": true,
+    "thirdPartyEnabled": true,
+    "coreConfig": {
+      "access_token_validity": 3600,
+      "refresh_token_validity": 2592000
+    }
+  }'
+```
+
+## GET /recipe/multitenancy/tenant
+
+Retrieve tenant configuration.
+
+### Query Parameters
+
+The tenant is identified from the request context (headers or domain).
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "tenantId": "string",
+  "emailPassword": {
+    "enabled": "boolean"
+  },
+  "passwordless": {
+    "enabled": "boolean"
+  },
+  "thirdParty": {
+    "enabled": "boolean",
+    "providers": []
+  },
+  "coreConfig": {},
+  "firstFactors": ["string"],
+  "requiredSecondaryFactors": ["string"]
+}
+```
+
+### Error Response
+
+```json
+{
+  "status": "TENANT_NOT_FOUND_ERROR"
+}
+```
+
+### Example
+
+```bash
+curl -X GET https://your-api-domain.com/recipe/multitenancy/tenant \
+  -H "tenantId: company-a"
+```
+
+## GET /recipe/multitenancy/tenant/list
+
+List all tenants for the current app.
+
+**Note**: This endpoint can only be called from the public tenant.
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "tenants": [
+    {
+      "tenantId": "string",
+      "emailPassword": {
+        "enabled": "boolean"
+      },
+      "passwordless": {
+        "enabled": "boolean"
+      },
+      "thirdParty": {
+        "enabled": "boolean",
+        "providers": []
+      },
+      "coreConfig": {},
+      "firstFactors": ["string"],
+      "requiredSecondaryFactors": ["string"]
+    }
+  ]
+}
+```
+
+### Example
+
+```bash
+curl -X GET https://your-api-domain.com/recipe/multitenancy/tenant/list
+```
+
+## DELETE /recipe/multitenancy/tenant
+
+Remove a tenant.
+
+### Request Body
+
+```json
+{
+  "tenantId": "string"
+}
+```
+
+### Response
+
+```json
+{
+  "status": "OK",
+  "didExist": "boolean"
+}
+```
+
+- **didExist**: `true` if the tenant existed and was deleted, `false` if it didn't exist
+
+### Example
+
+```bash
+curl -X DELETE https://your-api-domain.com/recipe/multitenancy/tenant \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenantId": "company-a"
+  }'
+```
+
+## User-Tenant Association
+
+### POST /recipe/multitenancy/tenant/user
+
+Associate a user with a tenant.
+
+#### Request Body
+
+```json
+{
+  "tenantId": "string",
+  "recipeUserId": "string"
+}
+```
+
+#### Response
+
+```json
+{
+  "status": "OK | UNKNOWN_USER_ID_ERROR | EMAIL_ALREADY_EXISTS_ERROR | PHONE_NUMBER_ALREADY_EXISTS_ERROR | THIRD_PARTY_USER_ALREADY_EXISTS_ERROR | ASSOCIATION_NOT_ALLOWED_ERROR",
+  "wasAlreadyAssociated": "boolean (optional)"
+}
+```
+
+### POST /recipe/multitenancy/tenant/user/remove
+
+Disassociate a user from a tenant.
+
+#### Request Body
+
+```json
+{
+  "tenantId": "string",
+  "recipeUserId": "string"
+}
+```
+
+#### Response
+
+```json
+{
+  "status": "OK",
+  "wasAssociated": "boolean"
+}
+```
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/multitenancy/CreateOrUpdateTenantOrGetTenantAPI.java:35` and `ListTenantsAPI.java:39`
+- Recipe: `MULTITENANCY`
+- Tenant IDs are normalized and validated before use
+- The public tenant (ID: "public") is created automatically
+- Protected configuration values can be hidden based on API key permissions
+- Tenant configuration supports version-specific JSON formats
+
+## Permissions
+
+- Listing tenants requires calling from the public tenant of an app
+- Creating/updating tenants can be done from any tenant context
+- The public tenant cannot be deleted
+
+## Best Practices
+
+1. Use descriptive tenant IDs (e.g., "acme-corp" instead of "t1")
+2. Configure authentication methods per tenant based on requirements
+3. Test authentication flows after creating/updating tenants
+4. Keep tenant-specific configuration minimal - use app-level defaults when possible
+5. Document your tenant structure and authentication setup

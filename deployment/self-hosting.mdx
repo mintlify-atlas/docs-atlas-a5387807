@@ -1,0 +1,344 @@
+---
+title: Self-Hosting SuperTokens Core
+description: Learn how to self-host SuperTokens Core on your own infrastructure
+---
+
+SuperTokens Core can be self-hosted on your own infrastructure, giving you complete control over your authentication data and user information.
+
+## System Requirements
+
+### Hardware Requirements
+
+- **CPU**: Minimum 1 core, recommended 2+ cores for production
+- **Memory**: Minimum 256MB RAM, recommended 512MB+ for production
+- **Disk Space**: 100MB for the application, additional space for database storage
+
+### Software Requirements
+
+- **Java Runtime**: OpenJDK 21 (JDK 21.0.7+) - bundled with official distributions
+- **Operating Systems**: 
+  - Linux (Ubuntu, Debian, CentOS, RHEL)
+  - macOS
+  - Windows
+- **Database**: One of the following:
+  - PostgreSQL 11+
+  - MySQL 5.7+
+  - MongoDB (via plugin)
+  - SQLite (for development/testing only)
+
+## Installation Methods
+
+### Docker (Recommended)
+
+The easiest way to run SuperTokens Core is using Docker:
+
+```bash
+docker run -d \
+  -p 3567:3567 \
+  -e POSTGRESQL_CONNECTION_URI="postgresql://username:password@host:5432/database" \
+  supertokens/supertokens-postgresql
+```
+
+For MySQL:
+
+```bash
+docker run -d \
+  -p 3567:3567 \
+  -e MYSQL_CONNECTION_URI="mysql://username:password@host:3306/database" \
+  supertokens/supertokens-mysql
+```
+
+See the [Docker deployment guide](/deployment/docker) for detailed configuration.
+
+### Binary Installation
+
+#### Linux/macOS
+
+1. Download the latest release:
+
+```bash
+curl -o supertokens.zip https://download.supertokens.io/latest
+unzip supertokens.zip
+cd supertokens
+```
+
+2. Configure your database connection in `config.yaml`
+
+3. Start the service:
+
+```bash
+./install
+supertokens start
+```
+
+#### Windows
+
+1. Download the Windows installer from [supertokens.io](https://supertokens.io/docs/community/getting-started/installation)
+2. Run the installer
+3. Configure `config.yaml`
+4. Run `supertokens.bat start`
+
+### From Source
+
+For advanced users who want to build from source:
+
+```bash
+# Clone the repository
+git clone https://github.com/supertokens/supertokens-core.git
+cd supertokens-core
+
+# Build with Gradle
+./gradlew build
+
+# The built artifacts will be in build/
+```
+
+See the [GitHub wiki](https://github.com/supertokens/supertokens-core/wiki/Building-from-source) for complete build instructions.
+
+## Configuration
+
+### Basic Configuration
+
+The main configuration file is `config.yaml`. Key settings include:
+
+```yaml
+core_config_version: 0
+
+# Server configuration
+port: 3567
+host: 0.0.0.0
+
+# API security
+api_keys: your_secure_api_key_min_20_chars
+
+# Logging
+log_level: INFO
+info_log_path: /var/log/supertokens/info.log
+error_log_path: /var/log/supertokens/error.log
+
+# Performance
+max_server_pool_size: 10
+```
+
+### Security Settings
+
+<Warning>
+Always set `api_keys` in production to secure your SuperTokens instance.
+</Warning>
+
+```yaml
+# API Keys (required for production)
+api_keys: key1_atleast20characters,key2_atleast20characters
+
+# IP filtering (optional)
+ip_allow_regex: 127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1
+# ip_deny_regex: blocked_ip_pattern
+```
+
+### Token Configuration
+
+```yaml
+# Access token validity (seconds)
+access_token_validity: 3600
+
+# Refresh token validity (minutes)
+refresh_token_validity: 144000
+
+# Password reset token lifetime (milliseconds)
+password_reset_token_lifetime: 3600000
+
+# Email verification token lifetime (milliseconds)
+email_verification_token_lifetime: 86400000
+```
+
+### Password Hashing
+
+Supported algorithms:
+
+```yaml
+# Choose hashing algorithm
+password_hashing_alg: ARGON2  # or BCRYPT
+
+# BCRYPT settings
+bcrypt_log_rounds: 11
+
+# ARGON2 settings (recommended)
+argon2_iterations: 1
+argon2_memory_kb: 87795  # ~85MB
+argon2_parallelism: 2
+argon2_hashing_pool_size: 1
+```
+
+## Running as a Service
+
+### Systemd (Linux)
+
+Create `/etc/systemd/system/supertokens.service`:
+
+```ini
+[Unit]
+Description=SuperTokens Service
+After=network.target
+
+[Service]
+Type=simple
+User=supertokens
+WorkingDirectory=/opt/supertokens
+ExecStart=/opt/supertokens/bin/supertokens start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable supertokens
+sudo systemctl start supertokens
+sudo systemctl status supertokens
+```
+
+### Docker Compose
+
+For production deployments with Docker, use Docker Compose:
+
+```yaml
+version: '3'
+services:
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    ports:
+      - "3567:3567"
+    environment:
+      POSTGRESQL_CONNECTION_URI: postgresql://user:pass@db:5432/supertokens
+    restart: unless-stopped
+    depends_on:
+      - db
+```
+
+See the [Docker deployment guide](/deployment/docker) for complete examples.
+
+## Environment Variables
+
+All config.yaml parameters can be overridden with environment variables:
+
+```bash
+# Format: Uppercase with underscores
+PORT=3567
+HOST=0.0.0.0
+POSTGRESQL_CONNECTION_URI=postgresql://...
+API_KEYS=your_key_here
+LOG_LEVEL=INFO
+PASSWORD_HASHING_ALG=ARGON2
+DISABLE_TELEMETRY=false
+```
+
+## Base Path Configuration
+
+To run SuperTokens behind a reverse proxy with a base path:
+
+```yaml
+base_path: /auth
+```
+
+All API endpoints will be prefixed with `/auth`.
+
+## Telemetry
+
+SuperTokens collects anonymous usage statistics by default:
+
+```yaml
+# Disable telemetry
+disable_telemetry: true
+```
+
+Learn more about [telemetry](https://github.com/supertokens/supertokens-core/wiki/Telemetry).
+
+## Scaling Considerations
+
+### Horizontal Scaling
+
+- SuperTokens Core is stateless and can be horizontally scaled
+- Run multiple instances behind a load balancer
+- All instances must connect to the same database
+- Session verification happens in the backend SDK (no core contact needed)
+
+### Performance Tuning
+
+```yaml
+# Increase thread pool for high traffic
+max_server_pool_size: 50
+
+# Bulk migration settings
+bulk_migration_parallelism: 4
+bulk_migration_batch_size: 8000
+```
+
+## Health Checks
+
+Verify SuperTokens is running:
+
+```bash
+curl http://localhost:3567/hello
+```
+
+Expected response: `Hello`
+
+See [Monitoring](/deployment/monitoring) for comprehensive health check strategies.
+
+## Upgrading
+
+### Docker
+
+```bash
+docker pull supertokens/supertokens-postgresql:latest
+docker-compose down
+docker-compose up -d
+```
+
+### Binary
+
+1. Stop the service
+2. Backup your database
+3. Download the new version
+4. Replace the binaries
+5. Start the service
+
+<Note>
+Always backup your database before upgrading.
+</Note>
+
+## Troubleshooting
+
+### Common Issues
+
+**Service won't start**
+- Check Java version: `java -version` (requires Java 21)
+- Verify database connectivity
+- Check logs in `error.log`
+
+**Database connection errors**
+- Verify connection URI format
+- Check database credentials
+- Ensure database exists and is accessible
+- Verify firewall rules
+
+**Port already in use**
+- Change the port in config.yaml
+- Check for other services using port 3567
+
+### Logs
+
+Log locations:
+- **Docker**: `docker logs <container-id>`
+- **Binary**: `logs/info.log` and `logs/error.log` in installation directory
+- **Systemd**: `journalctl -u supertokens`
+
+## Next Steps
+
+- [Configure your database](/deployment/database-setup)
+- [Set up monitoring](/deployment/monitoring)
+- [Deploy with Docker](/deployment/docker)
+- [Integrate with your application](https://supertokens.com/docs/guides)

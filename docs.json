@@ -1,122 +1,209 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "SuperTokens Core",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#ff9933",
+    "light": "#ffa64d",
+    "dark": "#e68a2e"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/supertokens/supertokens-core"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/supertokens/supertokens-core"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
               "index",
+              "architecture",
               "quickstart",
-              "development"
+              "configuration"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/sessions",
+              "concepts/multitenancy",
+              "concepts/user-management",
+              "concepts/security"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Authentication Methods",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "auth/email-password",
+              "auth/passwordless",
+              "auth/social-login",
+              "auth/oauth",
+              "auth/mfa",
+              "auth/webauthn",
+              "auth/saml"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Advanced Features",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "advanced/bulk-import",
+              "advanced/user-roles",
+              "advanced/user-metadata",
+              "advanced/active-users",
+              "advanced/jwt"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/self-hosting",
+              "deployment/database-setup",
+              "deployment/docker",
+              "deployment/monitoring"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core APIs",
             "pages": [
-              "api-reference/introduction"
+              "api/core/overview",
+              "api/core/hello",
+              "api/core/config",
+              "api/core/users",
+              "api/core/jwks"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Session Management",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/session/overview",
+              "api/session/create",
+              "api/session/verify",
+              "api/session/refresh",
+              "api/session/revoke"
+            ]
+          },
+          {
+            "group": "Email Password",
+            "pages": [
+              "api/emailpassword/overview",
+              "api/emailpassword/signup",
+              "api/emailpassword/signin",
+              "api/emailpassword/reset-password"
+            ]
+          },
+          {
+            "group": "Passwordless",
+            "pages": [
+              "api/passwordless/overview",
+              "api/passwordless/create-code",
+              "api/passwordless/consume-code",
+              "api/passwordless/resend-code"
+            ]
+          },
+          {
+            "group": "Third Party (Social Login)",
+            "pages": [
+              "api/thirdparty/overview",
+              "api/thirdparty/signin-up",
+              "api/thirdparty/providers"
+            ]
+          },
+          {
+            "group": "OAuth",
+            "pages": [
+              "api/oauth/overview",
+              "api/oauth/authorize",
+              "api/oauth/token",
+              "api/oauth/clients"
+            ]
+          },
+          {
+            "group": "Multi-tenancy",
+            "pages": [
+              "api/multitenancy/overview",
+              "api/multitenancy/tenants",
+              "api/multitenancy/apps"
+            ]
+          },
+          {
+            "group": "User Management",
+            "pages": [
+              "api/users/get-by-id",
+              "api/users/delete",
+              "api/users/list",
+              "api/users/account-linking"
+            ]
+          },
+          {
+            "group": "User Roles & Metadata",
+            "pages": [
+              "api/roles/overview",
+              "api/roles/create",
+              "api/roles/assign",
+              "api/metadata/get",
+              "api/metadata/update"
+            ]
+          },
+          {
+            "group": "MFA & TOTP",
+            "pages": [
+              "api/totp/overview",
+              "api/totp/create-device",
+              "api/totp/verify-device",
+              "api/totp/verify-totp"
+            ]
+          },
+          {
+            "group": "WebAuthn",
+            "pages": [
+              "api/webauthn/overview",
+              "api/webauthn/register",
+              "api/webauthn/authenticate",
+              "api/webauthn/credentials"
+            ]
+          },
+          {
+            "group": "SAML",
+            "pages": [
+              "api/saml/overview",
+              "api/saml/clients",
+              "api/saml/login",
+              "api/saml/callback"
+            ]
+          },
+          {
+            "group": "Dashboard",
+            "pages": [
+              "api/dashboard/overview",
+              "api/dashboard/sessions",
+              "api/dashboard/users"
+            ]
+          },
+          {
+            "group": "Bulk Import",
+            "pages": [
+              "api/bulkimport/overview",
+              "api/bulkimport/import",
+              "api/bulkimport/status"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

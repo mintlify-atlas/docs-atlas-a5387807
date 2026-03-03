@@ -1,0 +1,485 @@
+---
+title: Database Configuration
+description: Configure PostgreSQL, MySQL, or MongoDB for SuperTokens Core
+---
+
+SuperTokens Core requires a database to store user data, sessions, and authentication information. This guide covers setup for all supported databases.
+
+## Supported Databases
+
+- **PostgreSQL** 11+ (Recommended for production)
+- **MySQL** 5.7+ / MariaDB 10.2+
+- **SQLite** (Development only - not for production)
+- **MongoDB** (via plugin)
+
+## PostgreSQL Setup
+
+### Installation
+
+#### Ubuntu/Debian
+
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+```
+
+#### Docker
+
+```bash
+docker run -d \
+  --name postgres \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -e POSTGRES_DB=supertokens \
+  -p 5432:5432 \
+  postgres:15
+```
+
+### Database Creation
+
+```sql
+-- Connect to PostgreSQL
+psql -U postgres
+
+-- Create database
+CREATE DATABASE supertokens;
+
+-- Create user
+CREATE USER supertokens_user WITH PASSWORD 'your_secure_password';
+
+-- Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE supertokens TO supertokens_user;
+
+-- For PostgreSQL 15+, also grant schema privileges
+\c supertokens
+GRANT ALL ON SCHEMA public TO supertokens_user;
+```
+
+### Connection Configuration
+
+In `config.yaml`:
+
+```yaml
+postgresql_connection_uri: "postgresql://supertokens_user:your_secure_password@localhost:5432/supertokens"
+```
+
+Or via environment variable:
+
+```bash
+POSTGRESQL_CONNECTION_URI="postgresql://supertokens_user:your_secure_password@localhost:5432/supertokens"
+```
+
+### Connection URI Format
+
+```
+postgresql://[user[:password]@][host][:port][/database][?param1=value1&...]
+```
+
+**Examples:**
+
+```yaml
+# Basic connection
+postgresql_connection_uri: "postgresql://user:pass@localhost:5432/supertokens"
+
+# With SSL
+postgresql_connection_uri: "postgresql://user:pass@host:5432/supertokens?sslmode=require"
+
+# Cloud providers (AWS RDS)
+postgresql_connection_uri: "postgresql://user:pass@db.amazonaws.com:5432/supertokens?sslmode=require"
+
+# Multiple hosts (failover)
+postgresql_connection_uri: "postgresql://user:pass@host1:5432,host2:5432/supertokens"
+```
+
+### PostgreSQL Optimization
+
+For production workloads:
+
+```sql
+-- Tune PostgreSQL configuration
+ALTER SYSTEM SET shared_buffers = '256MB';
+ALTER SYSTEM SET effective_cache_size = '1GB';
+ALTER SYSTEM SET maintenance_work_mem = '64MB';
+ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+ALTER SYSTEM SET wal_buffers = '16MB';
+ALTER SYSTEM SET default_statistics_target = 100;
+ALTER SYSTEM SET random_page_cost = 1.1;
+ALTER SYSTEM SET effective_io_concurrency = 200;
+ALTER SYSTEM SET work_mem = '4MB';
+ALTER SYSTEM SET min_wal_size = '1GB';
+ALTER SYSTEM SET max_wal_size = '4GB';
+
+-- Restart PostgreSQL to apply changes
+```
+
+## MySQL Setup
+
+### Installation
+
+#### Ubuntu/Debian
+
+```bash
+sudo apt update
+sudo apt install mysql-server
+sudo systemctl start mysql
+sudo systemctl enable mysql
+sudo mysql_secure_installation
+```
+
+#### Docker
+
+```bash
+docker run -d \
+  --name mysql \
+  -e MYSQL_ROOT_PASSWORD=rootpassword \
+  -e MYSQL_DATABASE=supertokens \
+  -e MYSQL_USER=supertokens_user \
+  -e MYSQL_PASSWORD=your_secure_password \
+  -p 3306:3306 \
+  mysql:8.0
+```
+
+### Database Creation
+
+```sql
+-- Connect to MySQL
+mysql -u root -p
+
+-- Create database
+CREATE DATABASE supertokens CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Create user
+CREATE USER 'supertokens_user'@'%' IDENTIFIED BY 'your_secure_password';
+
+-- Grant privileges
+GRANT ALL PRIVILEGES ON supertokens.* TO 'supertokens_user'@'%';
+FLUSH PRIVILEGES;
+```
+
+### Connection Configuration
+
+In `config.yaml`:
+
+```yaml
+mysql_connection_uri: "mysql://supertokens_user:your_secure_password@localhost:3306/supertokens"
+```
+
+Or via environment variable:
+
+```bash
+MYSQL_CONNECTION_URI="mysql://supertokens_user:your_secure_password@localhost:3306/supertokens"
+```
+
+### Connection URI Format
+
+```
+mysql://[user[:password]@][host][:port][/database][?param1=value1&...]
+```
+
+**Examples:**
+
+```yaml
+# Basic connection
+mysql_connection_uri: "mysql://user:pass@localhost:3306/supertokens"
+
+# With SSL
+mysql_connection_uri: "mysql://user:pass@host:3306/supertokens?useSSL=true"
+
+# Cloud providers (AWS RDS)
+mysql_connection_uri: "mysql://user:pass@db.amazonaws.com:3306/supertokens?useSSL=true"
+
+# Connection pooling settings
+mysql_connection_uri: "mysql://user:pass@host:3306/supertokens?maxPoolSize=10"
+```
+
+### MySQL Optimization
+
+```sql
+-- Optimize for SuperTokens workload
+SET GLOBAL innodb_buffer_pool_size = 268435456; -- 256MB
+SET GLOBAL max_connections = 200;
+SET GLOBAL innodb_flush_log_at_trx_commit = 2;
+SET GLOBAL innodb_log_file_size = 67108864; -- 64MB
+```
+
+## MongoDB Setup
+
+<Note>
+MongoDB support requires a separate plugin. Contact SuperTokens for enterprise MongoDB support.
+</Note>
+
+### Installation
+
+```bash
+# Install MongoDB
+sudo apt install mongodb-org
+sudo systemctl start mongod
+sudo systemctl enable mongod
+```
+
+### Connection Configuration
+
+```yaml
+mongodb_connection_uri: "mongodb://username:password@localhost:27017/supertokens"
+```
+
+## SQLite (Development Only)
+
+<Warning>
+SQLite is only suitable for development and testing. Do not use in production.
+</Warning>
+
+SQLite is automatically used when no database connection is specified:
+
+```yaml
+# SQLite will be used by default
+# No configuration needed
+```
+
+Database location: `.started` directory in installation folder
+
+## Connection Pool Configuration
+
+SuperTokens manages database connections automatically. For high-traffic scenarios:
+
+```yaml
+# Increase server thread pool
+max_server_pool_size: 50
+```
+
+The database driver handles connection pooling internally.
+
+## Database Migrations
+
+### Automatic Migrations
+
+SuperTokens automatically creates and migrates database schema on startup. No manual migration is needed.
+
+**Migration process:**
+1. SuperTokens checks the current schema version
+2. Applies any pending migrations automatically
+3. Logs migration progress
+
+### Manual Migration Scripts
+
+For controlled migrations in production:
+
+```bash
+# Located in the installation directory
+ls migration_scripts/
+```
+
+Apply migrations manually:
+
+```sql
+-- PostgreSQL
+\i migration_scripts/postgresql/001_initial_schema.sql
+
+-- MySQL
+source migration_scripts/mysql/001_initial_schema.sql
+```
+
+### Schema Version Tracking
+
+SuperTokens tracks schema versions in the `st_schema_version` table:
+
+```sql
+SELECT * FROM st_schema_version;
+```
+
+## High Availability Setup
+
+### PostgreSQL HA
+
+**Option 1: PostgreSQL Streaming Replication**
+
+```yaml
+# Primary connection with replica failover
+postgresql_connection_uri: "postgresql://user:pass@primary:5432,replica1:5432,replica2:5432/supertokens?target_session_attrs=read-write"
+```
+
+**Option 2: PgBouncer Connection Pooling**
+
+```yaml
+postgresql_connection_uri: "postgresql://user:pass@pgbouncer:6432/supertokens"
+```
+
+**Option 3: Cloud Managed Services**
+- AWS RDS PostgreSQL with Multi-AZ
+- Google Cloud SQL
+- Azure Database for PostgreSQL
+
+### MySQL HA
+
+**Option 1: MySQL Group Replication**
+
+```yaml
+mysql_connection_uri: "mysql://user:pass@node1:3306,node2:3306,node3:3306/supertokens"
+```
+
+**Option 2: ProxySQL**
+
+```yaml
+mysql_connection_uri: "mysql://user:pass@proxysql:6033/supertokens"
+```
+
+**Option 3: Cloud Managed Services**
+- AWS RDS MySQL with Multi-AZ
+- Google Cloud SQL
+- Azure Database for MySQL
+
+## Backup and Recovery
+
+### PostgreSQL Backup
+
+**Full database backup:**
+
+```bash
+# Backup
+pg_dump -U supertokens_user -h localhost supertokens > backup.sql
+
+# Restore
+psql -U supertokens_user -h localhost supertokens < backup.sql
+```
+
+**Continuous archiving (PITR):**
+
+```bash
+# Configure WAL archiving in postgresql.conf
+archive_mode = on
+archive_command = 'cp %p /path/to/archive/%f'
+
+# Base backup
+pg_basebackup -D /backup/base -F tar -z -P
+```
+
+### MySQL Backup
+
+**Full database backup:**
+
+```bash
+# Backup
+mysqldump -u supertokens_user -p supertokens > backup.sql
+
+# Restore
+mysql -u supertokens_user -p supertokens < backup.sql
+```
+
+**Binary log replication:**
+
+```bash
+# Enable binary logging in my.cnf
+log_bin = mysql-bin
+server_id = 1
+```
+
+## Cloud Database Providers
+
+### AWS RDS
+
+```yaml
+# PostgreSQL
+postgresql_connection_uri: "postgresql://admin:password@mydb.abc123.us-east-1.rds.amazonaws.com:5432/supertokens?sslmode=require"
+
+# MySQL
+mysql_connection_uri: "mysql://admin:password@mydb.abc123.us-east-1.rds.amazonaws.com:3306/supertokens?useSSL=true"
+```
+
+### Google Cloud SQL
+
+```yaml
+# Using Cloud SQL Proxy
+postgresql_connection_uri: "postgresql://user:pass@localhost:5432/supertokens"
+
+# Or direct connection
+postgresql_connection_uri: "postgresql://user:pass@IP_ADDRESS:5432/supertokens"
+```
+
+### Azure Database
+
+```yaml
+# PostgreSQL
+postgresql_connection_uri: "postgresql://user@servername:password@servername.postgres.database.azure.com:5432/supertokens?sslmode=require"
+
+# MySQL
+mysql_connection_uri: "mysql://user@servername:password@servername.mysql.database.azure.com:3306/supertokens?useSSL=true"
+```
+
+### DigitalOcean Managed Databases
+
+```yaml
+postgresql_connection_uri: "postgresql://user:pass@hostname.db.ondigitalocean.com:25060/supertokens?sslmode=require"
+```
+
+## Troubleshooting
+
+### Connection Issues
+
+**Test database connectivity:**
+
+```bash
+# PostgreSQL
+psql -U supertokens_user -h localhost -d supertokens
+
+# MySQL
+mysql -u supertokens_user -h localhost -p supertokens
+```
+
+**Common errors:**
+
+- **Connection refused**: Check if database is running and firewall allows connections
+- **Authentication failed**: Verify username and password
+- **Database does not exist**: Create the database first
+- **SSL errors**: Check SSL configuration and certificates
+
+### Performance Issues
+
+**Check slow queries:**
+
+```sql
+-- PostgreSQL
+SELECT * FROM pg_stat_statements ORDER BY total_time DESC LIMIT 10;
+
+-- MySQL
+SELECT * FROM mysql.slow_log ORDER BY query_time DESC LIMIT 10;
+```
+
+**Monitor connection count:**
+
+```sql
+-- PostgreSQL
+SELECT count(*) FROM pg_stat_activity;
+
+-- MySQL
+SHOW PROCESSLIST;
+```
+
+### Migration Failures
+
+If automatic migration fails:
+
+1. Check SuperTokens error logs
+2. Verify database user has sufficient privileges
+3. Ensure database is accessible
+4. Apply migrations manually from `migration_scripts/`
+
+## Security Best Practices
+
+<Warning>
+Follow these security practices for production databases.
+</Warning>
+
+1. **Use strong passwords**: Minimum 16 characters, mixed case, numbers, symbols
+2. **Enable SSL/TLS**: Always encrypt database connections
+3. **Restrict network access**: Use firewall rules to limit database access
+4. **Regular backups**: Automate daily backups with retention policy
+5. **Principle of least privilege**: Grant only necessary permissions
+6. **Monitor access logs**: Track database access and queries
+7. **Keep databases updated**: Apply security patches regularly
+
+## Next Steps
+
+- [Configure monitoring](/deployment/monitoring)
+- [Deploy with Docker](/deployment/docker)
+- [Set up high availability](/deployment/self-hosting#scaling-considerations)

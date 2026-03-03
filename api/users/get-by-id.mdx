@@ -1,0 +1,181 @@
+---
+title: Get User by ID
+description: Retrieve user information by user ID
+---
+
+## GET /user/id
+
+Retrieve detailed information about a user by their user ID.
+
+## Query Parameters
+
+- **userId** (string, required): The user ID to retrieve. Can be either a SuperTokens user ID or an external user ID (if user ID mapping is configured)
+
+## Response
+
+### Success Response
+
+```json
+{
+  "status": "OK",
+  "user": {
+    "id": "string",
+    "timeJoined": "number",
+    "isPrimaryUser": "boolean",
+    "emails": ["string"],
+    "phoneNumbers": ["string"],
+    "thirdParty": [],
+    "loginMethods": [
+      {
+        "recipeId": "string",
+        "recipeUserId": "string",
+        "timeJoined": "number",
+        "verified": "boolean",
+        "email": "string (optional)",
+        "phoneNumber": "string (optional)",
+        "thirdParty": {
+          "id": "string",
+          "userId": "string"
+        } (optional)
+      }
+    ],
+    "tenantIds": ["string"]
+  }
+}
+```
+
+### User Not Found Response
+
+```json
+{
+  "status": "UNKNOWN_USER_ID_ERROR"
+}
+```
+
+## Response Fields
+
+- **status** (string): "OK" for success, "UNKNOWN_USER_ID_ERROR" if user not found
+- **user** (object): User information
+  - **id** (string): User's unique identifier
+  - **timeJoined** (number): Unix timestamp when user was created
+  - **isPrimaryUser** (boolean): Whether this is a primary user (for account linking)
+  - **emails** (array): All email addresses associated with this user
+  - **phoneNumbers** (array): All phone numbers associated with this user
+  - **thirdParty** (array): Third-party provider information
+  - **loginMethods** (array): All authentication methods available for this user
+    - **recipeId** (string): Authentication recipe ("emailpassword", "passwordless", "thirdparty")
+    - **recipeUserId** (string): User ID specific to this login method
+    - **timeJoined** (number): When this login method was added
+    - **verified** (boolean): Whether this login method is verified
+    - **email** (string, optional): Email for this login method
+    - **phoneNumber** (string, optional): Phone number for this login method
+    - **thirdParty** (object, optional): Third-party provider details
+  - **tenantIds** (array): List of tenant IDs this user belongs to
+
+## Example Usage
+
+### Get User by SuperTokens ID
+
+```bash
+curl -X GET "https://your-api-domain.com/user/id?userId=fa3b62b4-b06e-44bf-9f6e-e2b45d6c4c1a"
+```
+
+### Get User by External ID
+
+If you have user ID mapping configured:
+
+```bash
+curl -X GET "https://your-api-domain.com/user/id?userId=external-user-123"
+```
+
+### Response Example
+
+```json
+{
+  "status": "OK",
+  "user": {
+    "id": "fa3b62b4-b06e-44bf-9f6e-e2b45d6c4c1a",
+    "timeJoined": 1699564800000,
+    "isPrimaryUser": true,
+    "emails": ["user@example.com"],
+    "phoneNumbers": [],
+    "thirdParty": [],
+    "loginMethods": [
+      {
+        "recipeId": "emailpassword",
+        "recipeUserId": "fa3b62b4-b06e-44bf-9f6e-e2b45d6c4c1a",
+        "timeJoined": 1699564800000,
+        "verified": true,
+        "email": "user@example.com"
+      },
+      {
+        "recipeId": "thirdparty",
+        "recipeUserId": "a8c73e91-7b2f-4d9e-8f1a-3c5e7d9b1f2e",
+        "timeJoined": 1699651200000,
+        "verified": true,
+        "email": "user@example.com",
+        "thirdParty": {
+          "id": "google",
+          "userId": "102934812345678901234"
+        }
+      }
+    ],
+    "tenantIds": ["public"]
+  }
+}
+```
+
+## Implementation Details
+
+- Located in: `src/main/java/io/supertokens/webserver/api/core/GetUserByIdAPI.java:40`
+- This is an app-specific API
+- The API enforces public tenant access for app-specific queries
+- Supports user ID mapping: you can query using either SuperTokens user ID or external user ID
+- If a user ID mapping exists, the response contains the external user ID
+- User information includes all linked login methods (for account linking feature)
+
+## User ID Mapping
+
+If you've configured user ID mapping (to use your own user IDs), this endpoint:
+
+1. Accepts both SuperTokens IDs and external IDs as input
+2. Automatically resolves the mapping
+3. Returns the external ID in the response when a mapping exists
+
+## Account Linking
+
+This endpoint returns all login methods for a user when account linking is enabled:
+
+- **isPrimaryUser**: `true` if this is the primary user in an account link
+- **loginMethods**: Array of all linked authentication methods
+- Each login method has its own `recipeUserId`
+- Primary user ID is returned as the main user `id`
+
+## Use Cases
+
+- **User Profile Page**: Fetch complete user information for display
+- **Admin Dashboard**: Look up users by ID for support
+- **Account Management**: Retrieve user data before updates
+- **Multi-factor Authentication**: Check available authentication methods
+- **Tenant Verification**: Check which tenants a user belongs to
+
+## Error Handling
+
+### Unknown User ID
+
+If the user ID doesn't exist:
+
+```json
+{
+  "status": "UNKNOWN_USER_ID_ERROR"
+}
+```
+
+### Invalid Request
+
+If the userId parameter is missing, a 400 Bad Request error is returned.
+
+## Related Endpoints
+
+- [List Users](/api/users/list) - Get a paginated list of users
+- [Delete User](/api/users/delete) - Delete a user by ID

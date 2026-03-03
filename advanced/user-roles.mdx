@@ -1,0 +1,774 @@
+---
+title: User Roles & Permissions
+description: Implement role-based access control (RBAC) with hierarchical permissions and multi-tenant role management
+---
+
+## Overview
+
+SuperTokens Core provides a flexible role-based access control (RBAC) system that supports:
+- Hierarchical role and permission structure
+- Multi-tenant role assignments
+- Role inheritance across user pool
+- Bulk role operations
+
+## Core Concepts
+
+### Roles vs Permissions
+
+<CardGroup cols={2}>
+  <Card title="Roles" icon="user-shield">
+    Named collections of permissions (e.g., "admin", "editor", "viewer")
+  </Card>
+  <Card title="Permissions" icon="key">
+    Granular access rights (e.g., "user:read", "post:write", "admin:delete")
+  </Card>
+</CardGroup>
+
+**Relationship**: A role contains multiple permissions. A user can have multiple roles.
+
+```
+User → Roles → Permissions
+```
+
+### Storage Architecture
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:46-51`:
+
+<Note>
+  **Roles** are stored in the public tenant storage (app-level), while **role-to-user mappings** are stored in each tenant's storage. This allows roles to be shared across all tenants in an app.
+</Note>
+
+## Creating Roles
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:124-161`:
+
+```java
+public static boolean createNewRoleOrModifyItsPermissions(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String role,
+    String[] permissions
+) {
+    UserRolesSQLStorage userRolesStorage = 
+        StorageUtils.getUserRolesStorage(storage);
+    
+    return userRolesStorage.startTransaction(con -> {
+        // Create role if it doesn't exist
+        boolean wasANewRoleCreated = userRolesStorage
+            .createNewRoleOrDoNothingIfExists_Transaction(
+                appIdentifier, con, role
+            );
+        
+        // Add permissions to role
+        if (permissions != null) {
+            for (String permission : permissions) {
+                userRolesStorage
+                    .addPermissionToRoleOrDoNothingIfExists_Transaction(
+                        appIdentifier, con, role, permission
+                    );
+            }
+        }
+        
+        userRolesStorage.commitTransaction(con);
+        return wasANewRoleCreated;
+    });
+}
+```
+
+### Example: Create Role with Permissions
+
+```java
+// Create admin role with all permissions
+boolean created = UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier,
+    storage,
+    "admin",
+    new String[]{
+        "user:read",
+        "user:write",
+        "user:delete",
+        "post:read",
+        "post:write",
+        "post:delete"
+    }
+);
+
+if (created) {
+    System.out.println("Admin role created");
+}
+
+// Create editor role with limited permissions
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier,
+    storage,
+    "editor",
+    new String[]{
+        "user:read",
+        "post:read",
+        "post:write"
+    }
+);
+
+// Create viewer role
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier,
+    storage,
+    "viewer",
+    new String[]{"post:read"}
+);
+```
+
+## Assigning Roles to Users
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:41-60`:
+
+```java
+public static boolean addRoleToUser(
+    Main main,
+    TenantIdentifier tenantIdentifier,
+    Storage storage,
+    String userId,
+    String role
+) throws UnknownRoleException {
+    // Verify role exists in app storage
+    Storage appStorage = StorageLayer.getStorage(
+        tenantIdentifier.toAppIdentifier().getAsPublicTenantIdentifier(),
+        main
+    );
+    
+    if (!doesRoleExist(tenantIdentifier.toAppIdentifier(), appStorage, role)) {
+        throw new UnknownRoleException();
+    }
+    
+    try {
+        StorageUtils.getUserRolesStorage(storage)
+            .addRoleToUser(tenantIdentifier, userId, role);
+        return true;  // Role added
+    } catch (DuplicateUserRoleMappingException e) {
+        return false;  // User already has role
+    }
+}
+```
+
+### Example: Assign Roles
+
+```java
+try {
+    // Assign admin role
+    boolean added = UserRoles.addRoleToUser(
+        main,
+        tenantIdentifier,
+        storage,
+        userId,
+        "admin"
+    );
+    
+    if (added) {
+        System.out.println("Admin role assigned");
+    } else {
+        System.out.println("User already has admin role");
+    }
+    
+} catch (UnknownRoleException e) {
+    System.out.println("Role doesn't exist. Create it first.");
+}
+```
+
+## Bulk Role Assignment
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:62-109`:
+
+For bulk imports and batch operations:
+
+```java
+public static void addMultipleRolesToMultipleUsers(
+    Main main,
+    AppIdentifier appIdentifier,
+    Storage storage,
+    Map<TenantIdentifier, Map<String, List<String>>> rolesToUserByTenant
+) {
+    Storage appStorage = StorageLayer.getStorage(
+        appIdentifier.getAsPublicTenantIdentifier(), main
+    );
+    
+    UserRolesSQLStorage publicRoleStorage = 
+        StorageUtils.getUserRolesStorage(appStorage);
+    
+    // Verify all roles exist
+    publicRoleStorage.startTransaction(con -> {
+        Set<String> allRoles = new HashSet<>();
+        for (Map<String, List<String>> tenantRoles : rolesToUserByTenant.values()) {
+            for (List<String> roles : tenantRoles.values()) {
+                allRoles.addAll(roles);
+            }
+        }
+        
+        List<String> rolesFound = publicRoleStorage
+            .doesMultipleRoleExist_Transaction(
+                appIdentifier, con, new ArrayList<>(allRoles)
+            );
+        
+        // Check if any roles are missing
+        if (!new HashSet<>(rolesFound).containsAll(allRoles)) {
+            throw new UnknownRoleException();
+        }
+        
+        return null;
+    });
+    
+    // Add role-to-user mappings
+    UserRolesSQLStorage userRolesStorage = 
+        StorageUtils.getUserRolesStorage(storage);
+    
+    userRolesStorage.startTransaction(con -> {
+        userRolesStorage.addRolesToUsers_Transaction(
+            con, rolesToUserByTenant
+        );
+        userRolesStorage.commitTransaction(con);
+        return null;
+    });
+}
+```
+
+### Example: Bulk Assignment
+
+```java
+// Prepare role assignments by tenant
+Map<TenantIdentifier, Map<String, List<String>>> rolesToUserByTenant = 
+    new HashMap<>();
+
+TenantIdentifier tenant1 = new TenantIdentifier(
+    connectionUriDomain, appId, "tenant1"
+);
+
+// User1: admin + editor
+// User2: editor + viewer
+Map<String, List<String>> tenant1Users = new HashMap<>();
+tenant1Users.put("user1", Arrays.asList("admin", "editor"));
+tenant1Users.put("user2", Arrays.asList("editor", "viewer"));
+
+rolesToUserByTenant.put(tenant1, tenant1Users);
+
+// Bulk assign
+UserRoles.addMultipleRolesToMultipleUsers(
+    main, appIdentifier, storage, rolesToUserByTenant
+);
+```
+
+## Retrieving User Roles
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:223-226`:
+
+```java
+public static String[] getRolesForUser(
+    TenantIdentifier tenantIdentifier,
+    Storage storage,
+    String userId
+) {
+    return StorageUtils.getUserRolesStorage(storage)
+        .getRolesForUser(tenantIdentifier, userId);
+}
+```
+
+### Example: Get User's Roles
+
+```java
+String[] roles = UserRoles.getRolesForUser(
+    tenantIdentifier,
+    storage,
+    userId
+);
+
+System.out.println("User has " + roles.length + " roles:");
+for (String role : roles) {
+    System.out.println("  - " + role);
+}
+
+// Check if user has specific role
+boolean isAdmin = Arrays.asList(roles).contains("admin");
+```
+
+## Managing Permissions
+
+### Get Permissions for Role
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:257-270`:
+
+```java
+public static String[] getPermissionsForRole(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String role
+) throws UnknownRoleException {
+    UserRolesSQLStorage userRolesStorage = 
+        StorageUtils.getUserRolesStorage(storage);
+    
+    if (!userRolesStorage.doesRoleExist(appIdentifier, role)) {
+        throw new UnknownRoleException();
+    }
+    
+    return userRolesStorage.getPermissionsForRole(appIdentifier, role);
+}
+```
+
+### Example: Check User Permissions
+
+```java
+// Get all user's roles
+String[] roles = UserRoles.getRolesForUser(
+    tenantIdentifier, storage, userId
+);
+
+// Collect all permissions
+Set<String> allPermissions = new HashSet<>();
+for (String role : roles) {
+    String[] permissions = UserRoles.getPermissionsForRole(
+        appIdentifier, storage, role
+    );
+    allPermissions.addAll(Arrays.asList(permissions));
+}
+
+// Check specific permission
+if (allPermissions.contains("post:delete")) {
+    System.out.println("User can delete posts");
+}
+```
+
+### Delete Permissions from Role
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:280-308`:
+
+```java
+public static void deletePermissionsFromRole(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String role,
+    String[] permissions  // null to delete all
+) throws UnknownRoleException {
+    UserRolesSQLStorage userRolesStorage = 
+        StorageUtils.getUserRolesStorage(storage);
+    
+    userRolesStorage.startTransaction(con -> {
+        if (!userRolesStorage.doesRoleExist_Transaction(
+                appIdentifier, con, role)) {
+            throw new UnknownRoleException();
+        }
+        
+        if (permissions == null) {
+            // Delete all permissions
+            userRolesStorage.deleteAllPermissionsForRole_Transaction(
+                appIdentifier, con, role
+            );
+        } else {
+            // Delete specific permissions
+            for (String permission : permissions) {
+                userRolesStorage.deletePermissionForRole_Transaction(
+                    appIdentifier, con, role, permission
+                );
+            }
+        }
+        
+        userRolesStorage.commitTransaction(con);
+        return null;
+    });
+}
+```
+
+## Removing Roles
+
+### Remove Role from User
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:187-211`:
+
+```java
+public static boolean removeUserRole(
+    TenantIdentifier tenantIdentifier,
+    Storage storage,
+    String userId,
+    String role
+) throws UnknownRoleException {
+    UserRolesSQLStorage userRolesStorage = 
+        StorageUtils.getUserRolesStorage(storage);
+    
+    return userRolesStorage.startTransaction(con -> {
+        // Verify role exists
+        boolean doesRoleExist = userRolesStorage
+            .doesRoleExist_Transaction(
+                tenantIdentifier.toAppIdentifier(), con, role
+            );
+        
+        if (!doesRoleExist) {
+            throw new UnknownRoleException();
+        }
+        
+        // Remove role from user
+        return userRolesStorage.deleteRoleForUser_Transaction(
+            tenantIdentifier, con, userId, role
+        );
+    });
+}
+```
+
+### Remove All Roles from User
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:374-378`:
+
+```java
+public static int deleteAllRolesForUser(
+    TenantIdentifier tenantIdentifier,
+    Storage storage,
+    String userId
+) {
+    return StorageUtils.getUserRolesStorage(storage)
+        .deleteAllRolesForUser(tenantIdentifier, userId);
+}
+```
+
+### Delete Role Completely
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:336-353`:
+
+Deletes role and all user associations across all tenants:
+
+```java
+public static boolean deleteRole(
+    Main main,
+    AppIdentifier appIdentifier,
+    String role
+) {
+    Storage[] storages = StorageLayer.getStoragesForApp(
+        main, appIdentifier
+    );
+    
+    boolean deletedRole = false;
+    
+    // Delete user-role associations from all tenants
+    for (Storage storage : storages) {
+        UserRolesSQLStorage userRolesStorage = 
+            StorageUtils.getUserRolesStorage(storage);
+        deletedRole = userRolesStorage
+            .deleteAllUserRoleAssociationsForRole(appIdentifier, role) 
+            || deletedRole;
+    }
+    
+    // Delete role itself from public tenant
+    Storage appStorage = StorageLayer.getStorage(
+        appIdentifier.getAsPublicTenantIdentifier(), main
+    );
+    UserRolesSQLStorage userRolesStorage = 
+        StorageUtils.getUserRolesStorage(appStorage);
+    deletedRole = userRolesStorage.deleteRole(appIdentifier, role) 
+        || deletedRole;
+    
+    return deletedRole;
+}
+```
+
+<Warning>
+  Deleting a role removes it from all users across all tenants in the app. This operation cannot be undone.
+</Warning>
+
+## Querying Roles
+
+### List All Roles
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:362-365`:
+
+```java
+public static String[] getRoles(
+    AppIdentifier appIdentifier,
+    Storage storage
+) {
+    return StorageUtils.getUserRolesStorage(storage)
+        .getRoles(appIdentifier);
+}
+```
+
+### Get Users with Role
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:236-247`:
+
+```java
+public static String[] getUsersForRole(
+    TenantIdentifier tenantIdentifier,
+    Storage storage,
+    String role
+) throws UnknownRoleException {
+    UserRolesSQLStorage userRolesStorage = 
+        StorageUtils.getUserRolesStorage(storage);
+    
+    if (!userRolesStorage.doesRoleExist(
+            tenantIdentifier.toAppIdentifier(), role)) {
+        throw new UnknownRoleException();
+    }
+    
+    return userRolesStorage.getUsersForRole(tenantIdentifier, role);
+}
+```
+
+### Get Roles with Permission
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/userroles/UserRoles.java:320-325`:
+
+```java
+public static String[] getRolesThatHavePermission(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String permission
+) {
+    return StorageUtils.getUserRolesStorage(storage)
+        .getRolesThatHavePermission(appIdentifier, permission);
+}
+```
+
+## Multi-Tenant Role Management
+
+### Tenant-Scoped Role Assignment
+
+```java
+// Assign role in tenant1
+UserRoles.addRoleToUser(
+    main,
+    new TenantIdentifier(cuDomain, appId, "tenant1"),
+    storage,
+    userId,
+    "admin"
+);
+
+// Same user can have different roles in different tenants
+UserRoles.addRoleToUser(
+    main,
+    new TenantIdentifier(cuDomain, appId, "tenant2"),
+    storage,
+    userId,
+    "viewer"  // Different role in tenant2
+);
+
+// Check roles per tenant
+String[] tenant1Roles = UserRoles.getRolesForUser(
+    new TenantIdentifier(cuDomain, appId, "tenant1"),
+    storage,
+    userId
+);
+// Returns: ["admin"]
+
+String[] tenant2Roles = UserRoles.getRolesForUser(
+    new TenantIdentifier(cuDomain, appId, "tenant2"),
+    storage,
+    userId
+);
+// Returns: ["viewer"]
+```
+
+<Note>
+  Roles are defined at the **app level** but assigned at the **tenant level**. The same role name has the same permissions across all tenants.
+</Note>
+
+## Permission Naming Conventions
+
+### Recommended Format
+
+```
+resource:action
+```
+
+Examples:
+- `user:read` - Read user data
+- `user:write` - Create/update users
+- `user:delete` - Delete users
+- `post:read` - View posts
+- `post:write` - Create/edit posts
+- `post:delete` - Delete posts
+- `admin:access` - Access admin panel
+- `billing:manage` - Manage billing
+
+### Hierarchical Permissions
+
+```java
+// Admin has all permissions
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "admin",
+    new String[]{"*:*"}  // Wildcard for all
+);
+
+// Editor has all post permissions
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "editor",
+    new String[]{"post:*", "user:read"}
+);
+
+// Viewer has read-only
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "viewer",
+    new String[]{"post:read", "user:read"}
+);
+```
+
+## Complete Example
+
+```java
+// 1. Create roles with permissions
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "admin",
+    new String[]{"user:*", "post:*", "admin:*"}
+);
+
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "editor",
+    new String[]{"user:read", "post:*"}
+);
+
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "viewer",
+    new String[]{"user:read", "post:read"}
+);
+
+// 2. Assign roles to users
+UserRoles.addRoleToUser(
+    main, tenantIdentifier, storage, adminUserId, "admin"
+);
+
+UserRoles.addRoleToUser(
+    main, tenantIdentifier, storage, editorUserId, "editor"
+);
+
+UserRoles.addRoleToUser(
+    main, tenantIdentifier, storage, viewerUserId, "viewer"
+);
+
+// 3. Check user permissions
+String[] userRoles = UserRoles.getRolesForUser(
+    tenantIdentifier, storage, editorUserId
+);
+
+Set<String> permissions = new HashSet<>();
+for (String role : userRoles) {
+    String[] rolePermissions = UserRoles.getPermissionsForRole(
+        appIdentifier, storage, role
+    );
+    permissions.addAll(Arrays.asList(rolePermissions));
+}
+
+if (permissions.contains("post:delete")) {
+    // Allow delete
+} else {
+    // Deny
+}
+
+// 4. Update role permissions
+UserRoles.deletePermissionsFromRole(
+    appIdentifier, storage, "editor",
+    new String[]{"post:delete"}  // Remove delete permission
+);
+
+// 5. Remove role from user
+UserRoles.removeUserRole(
+    tenantIdentifier, storage, editorUserId, "editor"
+);
+
+// 6. List all users with a role
+String[] admins = UserRoles.getUsersForRole(
+    tenantIdentifier, storage, "admin"
+);
+
+System.out.println("Admin users: " + admins.length);
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Pre-Create Roles" icon="plus">
+    Create all roles before assigning them to users
+  </Card>
+  <Card title="Use Descriptive Names" icon="tag">
+    Role names should clearly indicate their purpose
+  </Card>
+  <Card title="Follow Least Privilege" icon="shield">
+    Grant minimum permissions necessary for each role
+  </Card>
+  <Card title="Document Permissions" icon="book">
+    Maintain a list of all permissions and their meanings
+  </Card>
+  <Card title="Regular Audits" icon="magnifying-glass">
+    Periodically review role assignments and permissions
+  </Card>
+  <Card title="Tenant Isolation" icon="layer-group">
+    Remember roles are app-wide but assignments are per-tenant
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Check Permission Helper
+
+```java
+public boolean userHasPermission(
+    TenantIdentifier tenantIdentifier,
+    Storage storage,
+    String userId,
+    String requiredPermission
+) {
+    try {
+        String[] roles = UserRoles.getRolesForUser(
+            tenantIdentifier, storage, userId
+        );
+        
+        for (String role : roles) {
+            String[] permissions = UserRoles.getPermissionsForRole(
+                appIdentifier, storage, role
+            );
+            
+            if (Arrays.asList(permissions).contains(requiredPermission)) {
+                return true;
+            }
+        }
+        
+        return false;
+    } catch (Exception e) {
+        return false;
+    }
+}
+
+// Usage
+if (userHasPermission(tenantIdentifier, storage, userId, "post:delete")) {
+    // Allow delete
+} else {
+    throw new ForbiddenException("Insufficient permissions");
+}
+```
+
+### Role Inheritance
+
+```java
+// Create role hierarchy
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "super_admin",
+    new String[]{"*:*"}
+);
+
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "admin",
+    new String[]{"user:*", "post:*"}
+);
+
+UserRoles.createNewRoleOrModifyItsPermissions(
+    appIdentifier, storage, "moderator",
+    new String[]{"post:*", "user:read"}
+);
+
+// Assign multiple roles for inheritance
+UserRoles.addRoleToUser(
+    main, tenantIdentifier, storage, userId, "admin"
+);
+UserRoles.addRoleToUser(
+    main, tenantIdentifier, storage, userId, "moderator"
+);
+// User now has combined permissions from both roles
+```
+
+## Related Topics
+
+- [User Management](/concepts/user-management)
+- [Multi-Tenancy](/concepts/multitenancy)
+- [Bulk Import](/advanced/bulk-import)
+- [User Metadata](/advanced/user-metadata)

@@ -1,0 +1,80 @@
+---
+title: Email Password API
+description: API endpoints for email/password authentication
+---
+
+The Email Password API provides endpoints for user authentication using email and password credentials. This recipe is part of SuperTokens Core and enables traditional email/password-based user management.
+
+## Available Endpoints
+
+### Authentication
+
+- [POST /recipe/signup](/api/emailpassword/signup) - Create a new user account with email and password
+- [POST /recipe/signin](/api/emailpassword/signin) - Sign in an existing user with email and password
+
+### Password Reset
+
+- [POST /recipe/user/password/reset/token](/api/emailpassword/reset-password#generate-reset-token) - Generate a password reset token for a user
+- [POST /recipe/user/password/reset/token/consume](/api/emailpassword/reset-password#consume-reset-token) - Consume a password reset token to retrieve user information
+- [POST /recipe/user/password/reset](/api/emailpassword/reset-password#reset-password-deprecated) - Reset a user's password using a token (deprecated)
+
+## Features
+
+### Email Normalization
+
+All email addresses are normalized before processing to ensure consistency. The normalization process:
+- Converts email to lowercase
+- Trims whitespace
+- Ensures valid email format
+
+### Password Validation
+
+Password validation includes:
+- Cannot be an empty string
+- Length and complexity requirements are enforced at the application level
+
+### Multi-tenancy Support
+
+All endpoints are tenant-specific and support SuperTokens' multi-tenancy features. The tenant identifier is extracted from the request and used to:
+- Verify the Email Password recipe is enabled for the tenant
+- Store and retrieve user data in the correct tenant context
+- Enforce tenant-specific permissions
+
+### User ID Mapping
+
+The Email Password API supports external user ID mapping, allowing you to:
+- Map SuperTokens internal user IDs to your external system's user IDs
+- Maintain consistency across different authentication providers
+- Return external user IDs in API responses when mappings exist
+
+### Active User Tracking
+
+Successful sign-up and sign-in operations automatically update the user's last active timestamp, which is used for:
+- Analytics and usage metrics
+- User activity monitoring
+- License compliance (for commercial deployments)
+
+## Common Response Patterns
+
+### Success Response
+
+Most successful operations return a response with `status: "OK"` and additional data specific to the endpoint.
+
+### Error Responses
+
+Error responses use HTTP 200 status code with a specific status field indicating the error type:
+- `EMAIL_ALREADY_EXISTS_ERROR` - Email is already registered
+- `WRONG_CREDENTIALS_ERROR` - Invalid email or password
+- `UNKNOWN_USER_ID_ERROR` - User ID not found
+- `RESET_PASSWORD_INVALID_TOKEN_ERROR` - Invalid or expired reset token
+
+Server errors and invalid requests will return appropriate HTTP error codes (4xx, 5xx).
+
+## Version Compatibility
+
+The Email Password API supports multiple CDI (Core Driver Interface) versions. Response formats may vary based on the API version:
+- CDI < 3.0: No tenant IDs in response
+- CDI >= 4.0: Includes recipe user IDs and account linking support
+- CDI >= 5.3: Enhanced user object format
+
+The API version is automatically detected from the request headers.

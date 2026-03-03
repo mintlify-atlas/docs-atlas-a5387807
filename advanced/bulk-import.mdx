@@ -1,0 +1,619 @@
+---
+title: Bulk User Import
+description: Import large numbers of users from external systems with support for multiple authentication methods, account linking, and metadata
+---
+
+## Overview
+
+SuperTokens Core provides a high-performance bulk import system for migrating users from external authentication systems. It supports batched processing, multiple authentication methods per user, and preserves user metadata, roles, and verification status.
+
+## Key Features
+
+<CardGroup cols={3}>
+  <Card title="High Volume" icon="users">
+    Import up to 10,000 users per API request
+  </Card>
+  <Card title="Multi-Method" icon="key">
+    Support for email/password, social, and passwordless
+  </Card>
+  <Card title="Account Linking" icon="link">
+    Automatically link multiple auth methods per user
+  </Card>
+  <Card title="Async Processing" icon="clock">
+    Background processing with status tracking
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation">
+    Detailed error reporting per user
+  </Card>
+  <Card title="Password Migration" icon="shield">
+    Import existing password hashes
+  </Card>
+</CardGroup>
+
+## Bulk Import Configuration
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:91-101`:
+
+<ParamField path="MAX_USERS_TO_ADD" type="number" value="10000">
+  Maximum users per POST request
+</ParamField>
+
+<ParamField path="GET_USERS_PAGINATION_MAX_LIMIT" type="number" value="500">
+  Maximum users returned per GET request
+</ParamField>
+
+<ParamField path="GET_USERS_DEFAULT_LIMIT" type="number" value="100">
+  Default pagination limit
+</ParamField>
+
+<ParamField path="DELETE_USERS_MAX_LIMIT" type="number" value="500">
+  Maximum users deleted per request
+</ParamField>
+
+<ParamField path="PROCESS_USERS_INTERVAL_SECONDS" type="number" value="300">
+  Interval between processing jobs (5 minutes)
+</ParamField>
+
+## User Import Structure
+
+### BulkImportUser Schema
+
+```java
+public class BulkImportUser {
+    public String id;                        // Auto-generated UUID
+    public String externalUserId;            // Your system's user ID
+    public JsonObject userMetadata;          // Custom metadata
+    public List<UserRole> userRoles;         // Roles and permissions
+    public List<TotpDevice> totpDevices;     // TOTP devices
+    public List<LoginMethod> loginMethods;   // Authentication methods
+}
+
+public class LoginMethod {
+    public String recipeId;                  // "emailpassword", "thirdparty", "passwordless"
+    public String superTokensUserId;         // Generated per method
+    public String externalUserId;            // Optional external ID
+    public String email;
+    public String passwordHash;              // Existing hash to import
+    public String plainTextPassword;         // Or plain text (will be hashed)
+    public String phoneNumber;
+    public String thirdPartyId;              // "google", "github", etc.
+    public String thirdPartyUserId;          // ID from provider
+    public boolean isPrimary;                // Primary login method flag
+    public boolean isVerified;               // Email/phone verified
+    public List<String> tenantIds;           // Associated tenants
+    public long timeJoinedInMSSinceEpoch;
+}
+
+public class UserRole {
+    public String role;
+    public List<String> tenantIds;
+}
+
+public class TotpDevice {
+    public String secretKey;
+    public String deviceName;
+    public int period;
+    public int skew;
+}
+```
+
+## Adding Users for Import
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:106-123`:
+
+```java
+public static void addUsers(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    List<BulkImportUser> users
+) {
+    while (true) {
+        try {
+            StorageUtils.getBulkImportStorage(storage)
+                .addBulkImportUsers(appIdentifier, users);
+            break;
+        } catch (DuplicateUserIdException e) {
+            // Regenerate IDs on conflict
+            for (BulkImportUser user : users) {
+                user.id = Utils.getUUID();
+            }
+        }
+    }
+}
+```
+
+## Import Process
+
+### Processing Pipeline
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:209-239`:
+
+<Steps>
+  <Step title="Process Login Methods">
+    Create users for each authentication method (email/password, social, passwordless)
+  </Step>
+  
+  <Step title="Link Accounts">
+    Create primary users and link multiple login methods
+  </Step>
+  
+  <Step title="Create User ID Mappings">
+    Map SuperTokens IDs to external system IDs
+  </Step>
+  
+  <Step title="Verify Emails">
+    Mark emails as verified based on import data
+  </Step>
+  
+  <Step title="Create TOTP Devices">
+    Import 2FA devices
+  </Step>
+  
+  <Step title="Import Metadata">
+    Store custom user metadata
+  </Step>
+  
+  <Step title="Assign Roles">
+    Apply roles and permissions
+  </Step>
+</Steps>
+
+```java
+public static void processUsersImportSteps(
+    Main main,
+    AppIdentifier appIdentifier,
+    Storage bulkImportProxyStorage,
+    List<BulkImportUser> users,
+    Storage[] allStoragesForApp
+) {
+    // 1. Process login methods by recipe
+    processUsersLoginMethods(main, appIdentifier, bulkImportProxyStorage, users);
+    
+    // 2. Create primary users and link accounts
+    createPrimaryUsersAndLinkAccounts(main, appIdentifier, bulkImportProxyStorage, users);
+    
+    // 3. Create user ID mappings
+    createMultipleUserIdMapping(appIdentifier, users, allStoragesForApp);
+    
+    // 4. Verify emails
+    verifyMultipleEmailForAllLoginMethods(appIdentifier, bulkImportProxyStorage, users);
+    
+    // 5. Create TOTP devices
+    createMultipleTotpDevices(main, appIdentifier, bulkImportProxyStorage, users);
+    
+    // 6. Import metadata
+    createMultipleUserMetadata(appIdentifier, bulkImportProxyStorage, users);
+    
+    // 7. Assign roles
+    createMultipleUserRoles(main, appIdentifier, bulkImportProxyStorage, users);
+}
+```
+
+### Email/Password Import
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:383-426`:
+
+```java
+private static List<? extends ImportUserBase> processEmailPasswordLoginMethods(
+    Main main,
+    Storage storage,
+    List<LoginMethod> loginMethods,
+    AppIdentifier appIdentifier
+) {
+    List<EmailPasswordImportUser> usersToImport = new ArrayList<>();
+    
+    for (LoginMethod lm : loginMethods) {
+        TenantIdentifier tenantIdentifier = new TenantIdentifier(
+            appIdentifier.getConnectionUriDomain(),
+            appIdentifier.getAppId(),
+            lm.tenantIds.get(0)
+        );
+        
+        // Hash password if plain text provided
+        String passwordHash = lm.passwordHash;
+        if (passwordHash == null && lm.plainTextPassword != null) {
+            passwordHash = PasswordHashing.getInstance(main)
+                .createHashWithSalt(
+                    tenantIdentifier.toAppIdentifier(),
+                    lm.plainTextPassword
+                );
+        }
+        
+        usersToImport.add(new EmailPasswordImportUser(
+            lm.superTokensUserId,
+            lm.email,
+            passwordHash,
+            tenantIdentifier,
+            lm.timeJoinedInMSSinceEpoch
+        ));
+    }
+    
+    // Batch insert
+    EmailPassword.createMultipleUsersWithPasswordHash(
+        storage, usersToImport
+    );
+    
+    return usersToImport;
+}
+```
+
+<Note>
+  Password hashes can be imported directly (if you have them) or plain text passwords will be hashed automatically using your configured algorithm.
+</Note>
+
+### Third-Party Import
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:344-381`:
+
+```java
+private static List<? extends ImportUserBase> processThirdpartyLoginMethods(
+    Main main,
+    Storage storage,
+    List<LoginMethod> loginMethods,
+    AppIdentifier appIdentifier
+) {
+    List<ThirdPartyImportUser> usersToImport = new ArrayList<>();
+    
+    for (LoginMethod lm : loginMethods) {
+        TenantIdentifier tenantIdentifier = new TenantIdentifier(
+            appIdentifier.getConnectionUriDomain(),
+            appIdentifier.getAppId(),
+            lm.tenantIds.get(0)
+        );
+        
+        usersToImport.add(new ThirdPartyImportUser(
+            lm.email,
+            lm.superTokensUserId,
+            lm.thirdPartyId,
+            lm.thirdPartyUserId,
+            tenantIdentifier,
+            lm.timeJoinedInMSSinceEpoch
+        ));
+    }
+    
+    ThirdParty.createMultipleThirdPartyUsers(storage, usersToImport);
+    
+    return usersToImport;
+}
+```
+
+### Passwordless Import
+
+```java
+private static List<? extends ImportUserBase> processPasswordlessLoginMethods(
+    Main main,
+    AppIdentifier appIdentifier,
+    Storage storage,
+    List<LoginMethod> loginMethods
+) {
+    List<PasswordlessImportUser> usersToImport = new ArrayList<>();
+    
+    for (LoginMethod lm : loginMethods) {
+        TenantIdentifier tenantIdentifier = new TenantIdentifier(
+            appIdentifier.getConnectionUriDomain(),
+            appIdentifier.getAppId(),
+            lm.tenantIds.get(0)
+        );
+        
+        usersToImport.add(new PasswordlessImportUser(
+            lm.superTokensUserId,
+            lm.phoneNumber,
+            lm.email,
+            tenantIdentifier,
+            lm.timeJoinedInMSSinceEpoch
+        ));
+    }
+    
+    Passwordless.createPasswordlessUsers(storage, usersToImport);
+    
+    return usersToImport;
+}
+```
+
+## Account Linking During Import
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:479-527`:
+
+```java
+private static void createPrimaryUsersAndLinkAccounts(
+    Main main,
+    AppIdentifier appIdentifier,
+    Storage storage,
+    List<BulkImportUser> users
+) {
+    // Filter users that need account linking
+    List<BulkImportUser> usersForLinking = users.stream()
+        .filter(user -> 
+            user.loginMethods.stream().anyMatch(lm -> lm.isPrimary) ||
+            user.loginMethods.size() > 1
+        )
+        .collect(Collectors.toList());
+    
+    if (usersForLinking.isEmpty()) {
+        return;
+    }
+    
+    // Create primary users
+    CreatePrimaryUsersResultHolder resultHolder = 
+        AuthRecipe.createPrimaryUsersForBulkImport(
+            main, appIdentifier, storage, usersForLinking
+        );
+    
+    // Link accounts
+    if (resultHolder.usersWithSameExtraData != null) {
+        linkAccountsForMultipleUser(
+            main, appIdentifier, storage,
+            usersForLinking, resultHolder.usersWithSameExtraData
+        );
+    }
+}
+```
+
+<Warning>
+  When importing users with multiple login methods, one method must be marked as `isPrimary: true`. All other methods will be linked to this primary account.
+</Warning>
+
+## Tenant Association
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:428-477`:
+
+```java
+private static void associateUserToTenants(
+    Main main,
+    AppIdentifier appIdentifier,
+    Storage storage,
+    LoginMethod lm,
+    String firstTenant
+) {
+    // First tenant is already associated during user creation
+    for (String tenantId : lm.tenantIds) {
+        if (tenantId.equals(firstTenant)) {
+            continue;
+        }
+        
+        TenantIdentifier tenantIdentifier = new TenantIdentifier(
+            appIdentifier.getConnectionUriDomain(),
+            appIdentifier.getAppId(),
+            tenantId
+        );
+        
+        Multitenancy.addUserIdToTenant(
+            main,
+            tenantIdentifier,
+            storage,
+            lm.superTokensUserId
+        );
+    }
+}
+```
+
+## Error Handling
+
+### Error Codes
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:86-87`:
+
+All errors include unique error codes (E001-E046) for debugging:
+
+| Error Code | Description |
+|------------|-------------|
+| E001 | Unknown recipe ID |
+| E002-E008 | Recipe-specific errors (duplicate email, phone, etc.) |
+| E009-E017 | Tenant association errors |
+| E018-E028 | Account linking errors |
+| E030-E032 | User ID mapping errors |
+| E033-E034 | User role errors |
+| E036-E037 | TOTP device errors |
+| E039-E044 | General processing errors |
+
+### Error Response Structure
+
+```java
+public class BulkImportBatchInsertException extends Exception {
+    public Map<String, Exception> exceptionByUserId;
+}
+```
+
+Errors are mapped by user ID:
+
+```json
+{
+  "user-123": {
+    "error": "E003: A user with email user@example.com already exists"
+  },
+  "user-456": {
+    "error": "E034: Role does not exist! You need to pre-create the role"
+  }
+}
+```
+
+## Checking Import Status
+
+### Get Import Users
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:125-152`:
+
+```java
+public static BulkImportUserPaginationContainer getUsers(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    int limit,
+    BULK_IMPORT_USER_STATUS status,  // NEW, PROCESSING, FAILED
+    String paginationToken
+) {
+    List<BulkImportUser> users;
+    
+    if (paginationToken == null) {
+        users = bulkImportStorage.getBulkImportUsers(
+            appIdentifier, limit + 1, status, null, null
+        );
+    } else {
+        BulkImportUserPaginationToken tokenInfo = 
+            BulkImportUserPaginationToken.extractTokenInfo(paginationToken);
+        users = bulkImportStorage.getBulkImportUsers(
+            appIdentifier, limit + 1, status,
+            tokenInfo.bulkImportUserId, tokenInfo.createdAt
+        );
+    }
+    
+    // Generate next pagination token if needed
+    String nextPaginationToken = null;
+    if (users.size() == limit + 1) {
+        BulkImportUser lastUser = users.get(limit);
+        nextPaginationToken = new BulkImportUserPaginationToken(
+            lastUser.id, lastUser.createdAt
+        ).generateToken();
+        users = users.subList(0, limit);
+    }
+    
+    return new BulkImportUserPaginationContainer(
+        users, nextPaginationToken
+    );
+}
+```
+
+### Import Status Types
+
+<CardGroup cols={3}>
+  <Card title="NEW" icon="clock">
+    User added to import queue
+  </Card>
+  <Card title="PROCESSING" icon="spinner">
+    Currently being imported
+  </Card>
+  <Card title="FAILED" icon="xmark">
+    Import failed with error
+  </Card>
+</CardGroup>
+
+### Count Users by Status
+
+```java
+long count = BulkImport.getBulkImportUsersCount(
+    appIdentifier,
+    storage,
+    BULK_IMPORT_USER_STATUS.FAILED  // or null for all
+);
+```
+
+## Deleting Import Users
+
+From `/home/daytona/workspace/source/src/main/java/io/supertokens/bulkimport/BulkImport.java:154-157`:
+
+```java
+public static List<String> deleteUsers(
+    AppIdentifier appIdentifier,
+    Storage storage,
+    String[] userIds  // Max 500
+) {
+    return StorageUtils.getBulkImportStorage(storage)
+        .deleteBulkImportUsers(appIdentifier, userIds);
+}
+```
+
+<Note>
+  This deletes users from the import queue only. It does not affect successfully imported users.
+</Note>
+
+## Complete Import Example
+
+```java
+// Prepare users for import
+List<BulkImportUser> users = new ArrayList<>();
+
+BulkImportUser user = new BulkImportUser();
+user.externalUserId = "external-user-123";
+user.userMetadata = new JsonObject();
+user.userMetadata.addProperty("plan", "premium");
+
+// Add email/password login method
+LoginMethod emailMethod = new LoginMethod();
+emailMethod.recipeId = "emailpassword";
+emailMethod.superTokensUserId = Utils.getUUID();
+emailMethod.email = "user@example.com";
+emailMethod.passwordHash = existingPasswordHash;
+emailMethod.isPrimary = true;
+emailMethod.isVerified = true;
+emailMethod.tenantIds = Arrays.asList("public");
+emailMethod.timeJoinedInMSSinceEpoch = System.currentTimeMillis();
+
+// Add Google login method
+LoginMethod googleMethod = new LoginMethod();
+googleMethod.recipeId = "thirdparty";
+googleMethod.superTokensUserId = Utils.getUUID();
+googleMethod.email = "user@example.com";
+googleMethod.thirdPartyId = "google";
+googleMethod.thirdPartyUserId = "google-user-id-123";
+googleMethod.isPrimary = false;
+googleMethod.isVerified = true;
+googleMethod.tenantIds = Arrays.asList("public");
+googleMethod.timeJoinedInMSSinceEpoch = System.currentTimeMillis();
+
+user.loginMethods = Arrays.asList(emailMethod, googleMethod);
+
+// Add roles
+UserRole adminRole = new UserRole();
+adminRole.role = "admin";
+adminRole.tenantIds = Arrays.asList("public");
+user.userRoles = Arrays.asList(adminRole);
+
+// Add TOTP device
+TotpDevice totp = new TotpDevice();
+totp.secretKey = "JBSWY3DPEHPK3PXP";
+totp.deviceName = "My Authenticator";
+totp.period = 30;
+totp.skew = 1;
+user.totpDevices = Arrays.asList(totp);
+
+users.add(user);
+
+// Add users to import queue
+BulkImport.addUsers(appIdentifier, storage, users);
+
+// Check status
+BulkImportUserPaginationContainer result = BulkImport.getUsers(
+    appIdentifier, storage, 100, 
+    BULK_IMPORT_USER_STATUS.FAILED, null
+);
+
+for (BulkImportUser failedUser : result.users) {
+    System.out.println("Failed: " + failedUser.id);
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Batch Processing" icon="layer-group">
+    Import in batches of 1,000-5,000 users for optimal performance
+  </Card>
+  <Card title="Pre-Create Roles" icon="user-shield">
+    Create all roles before importing users
+  </Card>
+  <Card title="Validate Data" icon="check">
+    Validate emails, phone numbers, and hashes before import
+  </Card>
+  <Card title="Monitor Status" icon="chart-line">
+    Check import status and handle failures
+  </Card>
+  <Card title="Use External IDs" icon="id-card">
+    Map to your system IDs for easy integration
+  </Card>
+  <Card title="Test Small Batches" icon="flask">
+    Test with 10-100 users before full migration
+  </Card>
+</CardGroup>
+
+## Performance Considerations
+
+- **Transaction Batching**: Users are processed in database transactions for consistency
+- **Proxy Storage**: Uses special proxy storage to avoid connection pool exhaustion
+- **Background Processing**: Cron job processes users every 5 minutes
+- **Error Isolation**: Errors in one user don't affect others in the batch
+
+## Related Topics
+
+- [User Management](/concepts/user-management)
+- [Multi-Tenancy](/concepts/multitenancy)
+- [User Roles](/advanced/user-roles)
+- [User Metadata](/advanced/user-metadata)

@@ -1,0 +1,739 @@
+---
+title: Docker Deployment
+description: Deploy SuperTokens Core using Docker and Docker Compose
+---
+
+Docker is the recommended way to deploy SuperTokens Core. This guide covers Docker deployment, configuration, and best practices.
+
+## Official Docker Images
+
+SuperTokens provides official Docker images for each database type:
+
+- `supertokens/supertokens-postgresql` - PostgreSQL backend
+- `supertokens/supertokens-mysql` - MySQL backend
+- `supertokens/supertokens-mongodb` - MongoDB backend (Enterprise)
+
+**Docker Hub:** https://hub.docker.com/u/supertokens
+
+## Quick Start
+
+### PostgreSQL
+
+```bash
+docker run -d \
+  --name supertokens \
+  -p 3567:3567 \
+  -e POSTGRESQL_CONNECTION_URI="postgresql://user:password@host:5432/supertokens" \
+  supertokens/supertokens-postgresql
+```
+
+### MySQL
+
+```bash
+docker run -d \
+  --name supertokens \
+  -p 3567:3567 \
+  -e MYSQL_CONNECTION_URI="mysql://user:password@host:3306/supertokens" \
+  supertokens/supertokens-mysql
+```
+
+### Verify Installation
+
+```bash
+curl http://localhost:3567/hello
+# Expected output: Hello
+```
+
+## Docker Compose Examples
+
+### Complete Stack with PostgreSQL
+
+`docker-compose.yml`:
+
+```yaml
+version: '3'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: supertokens
+      POSTGRES_PASSWORD: supertokens
+      POSTGRES_DB: supertokens
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U supertokens']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3567:3567"
+    environment:
+      POSTGRESQL_CONNECTION_URI: postgresql://supertokens:supertokens@postgres:5432/supertokens
+      API_KEYS: your_api_key_atleast_20_chars
+      LOG_LEVEL: INFO
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: >
+        bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+```
+
+### Complete Stack with MySQL
+
+```yaml
+version: '3'
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: supertokens
+      MYSQL_USER: supertokens
+      MYSQL_PASSWORD: supertokens
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app_network
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'supertokens', '-psupertokens']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  supertokens:
+    image: supertokens/supertokens-mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3567:3567"
+    environment:
+      MYSQL_CONNECTION_URI: mysql://supertokens:supertokens@mysql:3306/supertokens
+      API_KEYS: your_api_key_atleast_20_chars
+    networks:
+      - app_network
+    restart: unless-stopped
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+```
+
+### Production-Ready Configuration
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-supertokens}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-supertokens}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app_network
+    restart: always
+    command: |
+      postgres
+      -c shared_preload_libraries='pg_stat_statements'
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-supertokens}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  supertokens:
+    image: supertokens/supertokens-postgresql:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${SUPERTOKENS_PORT:-3567}:3567"
+    environment:
+      # Database
+      POSTGRESQL_CONNECTION_URI: postgresql://${DB_USER:-supertokens}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-supertokens}
+      
+      # Security
+      API_KEYS: ${SUPERTOKENS_API_KEYS}
+      
+      # Server
+      PORT: 3567
+      HOST: 0.0.0.0
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      INFO_LOG_PATH: stdout
+      ERROR_LOG_PATH: stderr
+      
+      # Performance
+      MAX_SERVER_POOL_SIZE: ${MAX_SERVER_POOL_SIZE:-50}
+      
+      # Password hashing
+      PASSWORD_HASHING_ALG: ARGON2
+      ARGON2_ITERATIONS: 1
+      ARGON2_MEMORY_KB: 87795
+      ARGON2_PARALLELISM: 2
+      ARGON2_HASHING_POOL_SIZE: 4
+      
+      # Bulk migration
+      BULK_MIGRATION_PARALLELISM: ${BULK_MIGRATION_PARALLELISM:-4}
+      BULK_MIGRATION_BATCH_SIZE: ${BULK_MIGRATION_BATCH_SIZE:-8000}
+      
+      # Telemetry
+      DISABLE_TELEMETRY: ${DISABLE_TELEMETRY:-false}
+      
+      # OpenTelemetry (optional)
+      # OTEL_COLLECTOR_CONNECTION_URI: http://otel-collector:4318
+    networks:
+      - app_network
+    restart: always
+    healthcheck:
+      test: >
+        bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 &&
+        echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 &&
+        cat <&3 | grep "Hello"'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+```
+
+`.env` file:
+
+```bash
+# Database
+DB_USER=supertokens
+DB_PASSWORD=your_secure_password_here
+DB_NAME=supertokens
+
+# SuperTokens
+SUPERTOKENS_PORT=3567
+SUPERTOKENS_API_KEYS=your_api_key_atleast_20_characters_long
+
+# Performance
+MAX_SERVER_POOL_SIZE=50
+BULK_MIGRATION_PARALLELISM=4
+BULK_MIGRATION_BATCH_SIZE=8000
+
+# Logging
+LOG_LEVEL=INFO
+
+# Telemetry
+DISABLE_TELEMETRY=false
+```
+
+## Environment Variables
+
+All configuration options can be set via environment variables:
+
+### Core Settings
+
+```bash
+PORT=3567                    # Server port
+HOST=0.0.0.0                # Server host
+BASE_PATH=/auth             # API base path
+MAX_SERVER_POOL_SIZE=50     # Thread pool size
+```
+
+### Database
+
+```bash
+# PostgreSQL
+POSTGRESQL_CONNECTION_URI="postgresql://user:pass@host:5432/db"
+
+# MySQL
+MYSQL_CONNECTION_URI="mysql://user:pass@host:3306/db"
+
+# MongoDB (Enterprise)
+MONGODB_CONNECTION_URI="mongodb://user:pass@host:27017/db"
+```
+
+### Security
+
+```bash
+API_KEYS="key1_atleast20chars,key2_atleast20chars"
+IP_ALLOW_REGEX="127\\.\\d+\\.\\d+\\.\\d+"
+IP_DENY_REGEX="blocked_pattern"
+```
+
+### Tokens
+
+```bash
+ACCESS_TOKEN_VALIDITY=3600              # seconds
+REFRESH_TOKEN_VALIDITY=144000           # minutes
+PASSWORD_RESET_TOKEN_LIFETIME=3600000  # milliseconds
+```
+
+### Password Hashing
+
+```bash
+PASSWORD_HASHING_ALG=ARGON2  # or BCRYPT
+
+# ARGON2 settings
+ARGON2_ITERATIONS=1
+ARGON2_MEMORY_KB=87795
+ARGON2_PARALLELISM=2
+ARGON2_HASHING_POOL_SIZE=4
+
+# BCRYPT settings
+BCRYPT_LOG_ROUNDS=11
+```
+
+### Logging
+
+```bash
+LOG_LEVEL=INFO              # DEBUG, INFO, WARN, ERROR, NONE
+INFO_LOG_PATH=stdout        # or file path
+ERROR_LOG_PATH=stderr       # or file path
+```
+
+### Telemetry
+
+```bash
+DISABLE_TELEMETRY=false
+OTEL_COLLECTOR_CONNECTION_URI=http://otel-collector:4318
+```
+
+## Volume Mounts
+
+### Custom Configuration File
+
+```yaml
+supertokens:
+  image: supertokens/supertokens-postgresql
+  volumes:
+    - ./config.yaml:/usr/lib/supertokens/config.yaml
+    - ./logs:/usr/lib/supertokens/logs
+  environment:
+    POSTGRESQL_CONNECTION_URI: postgresql://...
+```
+
+### Persistent Logs
+
+```yaml
+volumes:
+  - supertokens_logs:/usr/lib/supertokens/logs
+
+environment:
+  INFO_LOG_PATH: /usr/lib/supertokens/logs/info.log
+  ERROR_LOG_PATH: /usr/lib/supertokens/logs/error.log
+```
+
+## Docker Commands
+
+### Start Services
+
+```bash
+docker-compose up -d
+```
+
+### View Logs
+
+```bash
+# Follow logs
+docker-compose logs -f supertokens
+
+# Last 100 lines
+docker-compose logs --tail=100 supertokens
+
+# Logs since timestamp
+docker-compose logs --since 2024-01-01T00:00:00 supertokens
+```
+
+### Check Health
+
+```bash
+# Container health status
+docker-compose ps
+
+# Detailed health check
+docker inspect supertokens | grep -A 10 Health
+
+# Test endpoint
+curl http://localhost:3567/hello
+```
+
+### Restart Services
+
+```bash
+# Restart SuperTokens only
+docker-compose restart supertokens
+
+# Restart all services
+docker-compose restart
+```
+
+### Stop and Remove
+
+```bash
+# Stop services
+docker-compose stop
+
+# Remove containers (keeps volumes)
+docker-compose down
+
+# Remove everything including volumes
+docker-compose down -v
+```
+
+### Update Images
+
+```bash
+# Pull latest images
+docker-compose pull
+
+# Recreate containers with new images
+docker-compose up -d --force-recreate
+```
+
+## Multi-Container Scaling
+
+### Horizontal Scaling with Docker
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    # ... postgres config ...
+
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    environment:
+      POSTGRESQL_CONNECTION_URI: postgresql://...
+    networks:
+      - app_network
+    restart: always
+    deploy:
+      replicas: 3  # Run 3 instances
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "3567:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - supertokens
+    networks:
+      - app_network
+```
+
+`nginx.conf` for load balancing:
+
+```nginx
+upstream supertokens_backend {
+    least_conn;
+    server supertokens:3567 max_fails=3 fail_timeout=30s;
+}
+
+server {
+    listen 80;
+    
+    location / {
+        proxy_pass http://supertokens_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Docker Swarm Deployment
+
+```yaml
+version: '3.8'
+
+services:
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    environment:
+      POSTGRESQL_CONNECTION_URI: postgresql://...
+    networks:
+      - app_network
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      placement:
+        constraints:
+          - node.role == worker
+```
+
+Deploy:
+
+```bash
+docker stack deploy -c docker-compose.yml supertokens
+```
+
+## Kubernetes Deployment
+
+For Kubernetes, use Helm charts or kubectl:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supertokens
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: supertokens
+  template:
+    metadata:
+      labels:
+        app: supertokens
+    spec:
+      containers:
+      - name: supertokens
+        image: supertokens/supertokens-postgresql:latest
+        ports:
+        - containerPort: 3567
+        env:
+        - name: POSTGRESQL_CONNECTION_URI
+          valueFrom:
+            secretKeyRef:
+              name: supertokens-secrets
+              key: db-uri
+        - name: API_KEYS
+          valueFrom:
+            secretKeyRef:
+              name: supertokens-secrets
+              key: api-keys
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /hello
+            port: 3567
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /hello
+            port: 3567
+          initialDelaySeconds: 10
+          periodSeconds: 5
+```
+
+## Security Best Practices
+
+### Use Secrets Management
+
+```yaml
+services:
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    environment:
+      POSTGRESQL_CONNECTION_URI_FILE: /run/secrets/db_uri
+      API_KEYS_FILE: /run/secrets/api_keys
+    secrets:
+      - db_uri
+      - api_keys
+
+secrets:
+  db_uri:
+    file: ./secrets/db_uri.txt
+  api_keys:
+    file: ./secrets/api_keys.txt
+```
+
+### Non-Root User
+
+SuperTokens images run as non-root user `supertokens` by default.
+
+### Read-Only Root Filesystem
+
+```yaml
+supertokens:
+  image: supertokens/supertokens-postgresql
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /usr/lib/supertokens/temp
+```
+
+### Network Isolation
+
+```yaml
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true  # No external access
+
+services:
+  supertokens:
+    networks:
+      - frontend
+      - backend
+  postgres:
+    networks:
+      - backend  # Only internal network
+```
+
+## Monitoring with Docker
+
+### Health Checks
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:3567/hello"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+### Resource Monitoring
+
+```bash
+# Container stats
+docker stats supertokens
+
+# Resource usage
+docker-compose top
+```
+
+### Integration with Prometheus
+
+```yaml
+prometheus:
+  image: prom/prometheus
+  volumes:
+    - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  ports:
+    - "9090:9090"
+```
+
+See [Monitoring guide](/deployment/monitoring) for detailed setup.
+
+## Troubleshooting
+
+### Container Won't Start
+
+```bash
+# Check logs
+docker-compose logs supertokens
+
+# Inspect container
+docker inspect supertokens
+
+# Check events
+docker events
+```
+
+### Database Connection Issues
+
+```bash
+# Test from SuperTokens container
+docker-compose exec supertokens sh
+ping postgres
+
+# Test from host
+docker-compose exec postgres psql -U supertokens -d supertokens
+```
+
+### Performance Issues
+
+```bash
+# Check resource usage
+docker stats
+
+# Increase memory limit
+docker-compose up -d --scale supertokens=1 --memory="1g"
+```
+
+### Reset Everything
+
+```bash
+# Stop and remove everything
+docker-compose down -v
+
+# Remove images
+docker rmi supertokens/supertokens-postgresql
+
+# Start fresh
+docker-compose up -d
+```
+
+## Next Steps
+
+- [Configure monitoring and alerts](/deployment/monitoring)
+- [Set up database backups](/deployment/database-setup#backup-and-recovery)
+- [Implement high availability](/deployment/self-hosting#scaling-considerations)

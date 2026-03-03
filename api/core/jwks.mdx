@@ -1,0 +1,460 @@
+---
+title: 'JWKS Public Keys'
+description: 'GET /.well-known/jwks.json - Retrieve public keys for JWT verification'
+---
+
+## Overview
+
+The `/.well-known/jwks.json` endpoint returns the JSON Web Key Set (JWKS) containing public keys used to verify JWT signatures issued by SuperTokens. This endpoint follows the standard JWKS specification (RFC 7517) and is commonly used by applications to validate JWTs.
+
+**Key Features:**
+- Standard JWKS format (RFC 7517)
+- No authentication required (public endpoint)
+- No API version header required
+- App-specific key sets
+- Cache-Control headers for optimal performance
+- Supports multiple signing algorithms
+
+## Endpoint
+
+```
+GET /.well-known/jwks.json
+```
+
+**Base URL:** `http://localhost:3567`
+
+## Request
+
+### Headers
+
+No headers required. This is a public endpoint.
+
+### Query Parameters
+
+None.
+
+### Request Body
+
+None.
+
+## Response
+
+### Success Response
+
+**Status Code:** `200 OK`
+
+**Content-Type:** `application/json`
+
+**Headers:**
+```
+Cache-Control: max-age={seconds}, must-revalidate
+```
+
+**Body:**
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "s-2de612a5-a5ba-413e-9216-4c43e2e78c86",
+      "n": "AMZruthvYz7Ft-Dp0BC_SEEJaWK91s_YA-RR81iLJ6BTT6gJp0CcV4DfBynFU_59dRGOZyVQpAW6Dy0r",
+      "e": "AQAB",
+      "alg": "RS256",
+      "use": "sig"
+    },
+    {
+      "kty": "RSA",
+      "kid": "d-230a890d-a7db-4a4c-8bd2-11711db8e5c5",
+      "n": "xjlCRBqkzZyC-3fBKKVLxIGFWdVPRfWtKxZbr-WsSx9qvBKQKjVSKK7KcV4TlkKxA_9mGxcPr",
+      "e": "AQAB",
+      "alg": "RS256",
+      "use": "sig"
+    }
+  ]
+}
+```
+
+<ResponseField name="keys" type="array" required>
+  Array of JSON Web Key objects
+</ResponseField>
+
+### JSON Web Key Object
+
+<ResponseField name="kty" type="string" required>
+  Key type - typically `"RSA"` for RSA keys
+</ResponseField>
+
+<ResponseField name="kid" type="string" required>
+  Key ID - unique identifier for this key. Used in JWT headers to specify which key signed the token.
+</ResponseField>
+
+<ResponseField name="n" type="string" required>
+  RSA public key modulus (base64url-encoded)
+</ResponseField>
+
+<ResponseField name="e" type="string" required>
+  RSA public key exponent (base64url-encoded)
+</ResponseField>
+
+<ResponseField name="alg" type="string" required>
+  Algorithm - signing algorithm used (e.g., `"RS256"` for RSA with SHA-256)
+</ResponseField>
+
+<ResponseField name="use" type="string" required>
+  Public key use - typically `"sig"` for signature verification
+</ResponseField>
+
+### Error Response
+
+**Status Code:** `500 Internal Server Error`
+
+Returned when:
+- Storage query exception occurs
+- Key generation fails
+- Unsupported JWT signing algorithm
+- App or tenant not found
+
+## Examples
+
+### cURL
+
+```bash
+curl http://localhost:3567/.well-known/jwks.json
+```
+
+**Response:**
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "s-2de612a5-a5ba-413e-9216-4c43e2e78c86",
+      "n": "AMZruthvYz7Ft...",
+      "e": "AQAB",
+      "alg": "RS256",
+      "use": "sig"
+    }
+  ]
+}
+```
+
+### App-Specific Request
+
+```bash
+curl http://localhost:3567/appid-myapp/.well-known/jwks.json
+```
+
+### Check Cache Headers
+
+```bash
+curl -I http://localhost:3567/.well-known/jwks.json
+```
+
+**Response Headers:**
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+Cache-Control: max-age=60, must-revalidate
+```
+
+### JavaScript (Node.js)
+
+```javascript
+const response = await fetch('http://localhost:3567/.well-known/jwks.json');
+const jwks = await response.json();
+
+console.log(`Found ${jwks.keys.length} keys`);
+jwks.keys.forEach(key => {
+  console.log(`Key ID: ${key.kid}, Algorithm: ${key.alg}`);
+});
+```
+
+### Python
+
+```python
+import requests
+
+response = requests.get('http://localhost:3567/.well-known/jwks.json')
+jwks = response.json()
+
+for key in jwks['keys']:
+    print(f"Key ID: {key['kid']}, Algorithm: {key['alg']}")
+```
+
+## JWT Verification
+
+### Using jsonwebtoken (Node.js)
+
+```javascript
+const jwt = require('jsonwebtoken');
+const jwksClient = require('jwks-rsa');
+
+const client = jwksClient({
+  jwksUri: 'http://localhost:3567/.well-known/jwks.json',
+  cache: true,
+  cacheMaxAge: 60000 // 1 minute
+});
+
+function getKey(header, callback) {
+  client.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      callback(err);
+      return;
+    }
+    const signingKey = key.getPublicKey();
+    callback(null, signingKey);
+  });
+}
+
+// Verify a JWT
+const token = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InMtMmRlNjEyYTUifQ...';
+
+jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
+  if (err) {
+    console.error('Token verification failed:', err);
+  } else {
+    console.log('Token verified:', decoded);
+  }
+});
+```
+
+### Using PyJWT (Python)
+
+```python
+import jwt
+import requests
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from jwt.algorithms import RSAAlgorithm
+
+# Fetch JWKS
+response = requests.get('http://localhost:3567/.well-known/jwks.json')
+jwks = response.json()
+
+# Create a key dictionary
+keys = {}
+for key in jwks['keys']:
+    kid = key['kid']
+    public_key = RSAAlgorithm.from_jwk(json.dumps(key))
+    keys[kid] = public_key
+
+# Verify a token
+token = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjxrZXktaWQ+In0...'
+header = jwt.get_unverified_header(token)
+kid = header['kid']
+
+try:
+    decoded = jwt.decode(token, keys[kid], algorithms=['RS256'])
+    print('Token verified:', decoded)
+except jwt.InvalidTokenError as e:
+    print('Token verification failed:', e)
+```
+
+### Using jose (Go)
+
+```go
+import (
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "gopkg.in/square/go-jose.v2"
+    "gopkg.in/square/go-jose.v2/jwt"
+)
+
+type JWKS struct {
+    Keys []jose.JSONWebKey `json:"keys"`
+}
+
+func getJWKS() (*JWKS, error) {
+    resp, err := http.Get("http://localhost:3567/.well-known/jwks.json")
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var jwks JWKS
+    if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+        return nil, err
+    }
+    return &jwks, nil
+}
+
+func verifyToken(tokenString string) error {
+    jwks, err := getJWKS()
+    if err != nil {
+        return err
+    }
+
+    token, err := jwt.ParseSigned(tokenString)
+    if err != nil {
+        return err
+    }
+
+    // Find matching key by kid
+    for _, key := range jwks.Keys {
+        if key.KeyID == token.Headers[0].KeyID {
+            claims := jwt.Claims{}
+            if err := token.Claims(key, &claims); err != nil {
+                return err
+            }
+            fmt.Println("Token verified:", claims)
+            return nil
+        }
+    }
+    return fmt.Errorf("no matching key found")
+}
+```
+
+## Implementation Details
+
+### Key Rotation
+
+SuperTokens uses multiple keys simultaneously to support key rotation:
+- **Static keys**: Long-lived keys for consistency
+- **Dynamic keys**: Rotating keys for enhanced security
+
+Both types of keys are included in the JWKS response.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/JWKSPublicAPI.java:64-68`
+
+### Cache Control
+
+The endpoint sets cache headers to optimize performance while ensuring keys stay fresh:
+
+```
+Cache-Control: max-age={seconds}, must-revalidate
+```
+
+The cache duration is determined by the signing key configuration.
+
+**Source:** `/home/daytona/workspace/source/src/main/java/io/supertokens/webserver/api/core/JWKSPublicAPI.java:69`
+
+### App-Specific Keys
+
+Each app in a multitenancy setup has its own set of signing keys. Use app-specific URLs to retrieve the correct keys:
+
+```bash
+http://localhost:3567/appid-{appId}/.well-known/jwks.json
+```
+
+## Use Cases
+
+### OAuth 2.0 / OpenID Connect Discovery
+
+Include the JWKS URL in your OpenID Connect discovery document:
+
+```json
+{
+  "issuer": "http://localhost:3567",
+  "jwks_uri": "http://localhost:3567/.well-known/jwks.json",
+  "token_endpoint": "http://localhost:3567/recipe/session",
+  "authorization_endpoint": "http://localhost:3567/recipe/signin"
+}
+```
+
+### Verify Access Tokens
+
+```javascript
+// Middleware to verify access tokens
+const verifyAccessToken = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  
+  try {
+    const decoded = await verifyJWT(token);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
+```
+
+### API Gateway Integration
+
+Configure your API gateway to use the JWKS endpoint for token validation:
+
+```yaml
+# Kong configuration
+plugins:
+  - name: jwt
+    config:
+      uri_param_names:
+        - jwt
+      cookie_names:
+        - jwt
+      key_claim_name: kid
+      claims_to_verify:
+        - exp
+      jwks_uri: http://localhost:3567/.well-known/jwks.json
+```
+
+## Best Practices
+
+<Tip>
+  Cache the JWKS response according to the Cache-Control headers to reduce latency and server load.
+</Tip>
+
+<Warning>
+  Always verify the JWT signature using the public keys from this endpoint. Never skip signature verification in production.
+</Warning>
+
+**Performance:**
+- Cache JWKS responses for the duration specified in Cache-Control
+- Implement a background refresh before cache expiration
+- Use connection pooling for repeated requests
+
+**Security:**
+- Always use HTTPS in production
+- Verify the `kid` (key ID) matches between JWT header and JWKS
+- Check token expiration and other claims
+- Implement proper error handling for invalid tokens
+
+**Multitenancy:**
+- Use app-specific JWKS URLs for each app
+- Don't share keys across security boundaries
+- Update JWKS cache when switching apps
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Health Check" icon="heart-pulse" href="/api/core/hello">
+    Test server connectivity
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/core/overview">
+    Learn about authentication and error handling
+  </Card>
+</CardGroup>
+
+## Standards and Specifications
+
+- [RFC 7517 - JSON Web Key (JWK)](https://tools.ietf.org/html/rfc7517)
+- [RFC 7518 - JSON Web Algorithms (JWA)](https://tools.ietf.org/html/rfc7518)
+- [RFC 7519 - JSON Web Token (JWT)](https://tools.ietf.org/html/rfc7519)
+- [OpenID Connect Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
+
+## Troubleshooting
+
+### Token Verification Fails
+
+1. Check that the `kid` in the JWT header matches a key in the JWKS
+2. Verify you're using the correct JWKS URL for your app
+3. Ensure the JWT algorithm matches the key's `alg` field
+4. Check token expiration claims
+
+### Keys Not Found
+
+1. Verify SuperTokens is running: `curl http://localhost:3567/hello`
+2. Check for storage/database errors in SuperTokens logs
+3. Verify app identifier if using multitenancy
+4. Ensure signing keys are initialized
+
+### Cache Issues
+
+1. Respect Cache-Control headers to avoid stale keys
+2. Implement a cache refresh mechanism
+3. Clear cache after key rotation events
+4. Monitor cache hit rates

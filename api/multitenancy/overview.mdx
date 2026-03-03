@@ -1,0 +1,128 @@
+---
+title: Multi-tenancy API Overview
+description: Manage apps and tenants in SuperTokens
+---
+
+## Overview
+
+SuperTokens provides comprehensive multi-tenancy support, allowing you to:
+
+- Manage multiple applications within a single SuperTokens instance
+- Create isolated tenants within each application
+- Configure authentication methods per tenant
+- Isolate user data across tenants while sharing infrastructure
+
+## Architecture
+
+SuperTokens multi-tenancy is organized in a three-level hierarchy:
+
+```
+Connection URI Domain
+  └── App (appId)
+      └── Tenant (tenantId)
+```
+
+### Connection URI Domain
+
+The top-level domain that groups all apps and tenants. Typically represents your SuperTokens instance.
+
+### App (Application)
+
+Applications represent separate products or environments. Each app:
+- Has a unique `appId`
+- Can contain multiple tenants
+- Shares user data across its tenants (with proper configuration)
+- Has its own configuration and recipes
+
+### Tenant
+
+Tenants provide data isolation within an app. Each tenant:
+- Has a unique `tenantId` within its app
+- Can have its own authentication configuration
+- Can use different login methods (email/password, social login, etc.)
+- Isolates user access and data
+
+## Default Entities
+
+- **Default App**: `public` (TenantIdentifier.DEFAULT_APP_ID)
+- **Default Tenant**: `public` (TenantIdentifier.DEFAULT_TENANT_ID)
+
+When creating a SuperTokens instance, a default app and tenant are automatically created.
+
+## Common Use Cases
+
+### Multi-tenant SaaS Application
+
+Each customer gets their own tenant with isolated user data:
+
+```
+App: "production"
+  ├── Tenant: "company-a"
+  ├── Tenant: "company-b"
+  └── Tenant: "company-c"
+```
+
+### Multiple Environments
+
+Separate apps for different environments:
+
+```
+├── App: "production"
+│   └── Tenant: "public"
+├── App: "staging"
+│   └── Tenant: "public"
+└── App: "development"
+    └── Tenant: "public"
+```
+
+### White-label Solutions
+
+Different tenants with different authentication methods:
+
+```
+App: "white-label"
+  ├── Tenant: "client-a" (Email/Password + Google)
+  ├── Tenant: "client-b" (Email/Password only)
+  └── Tenant: "client-c" (SAML + Social Login)
+```
+
+## API Endpoints
+
+### App Management
+
+- **PUT /recipe/multitenancy/app** - Create or update an app
+- **GET /recipe/multitenancy/app/list** - List all apps
+- **DELETE /recipe/multitenancy/app** - Remove an app
+
+### Tenant Management
+
+- **PUT /recipe/multitenancy/tenant** - Create or update a tenant
+- **GET /recipe/multitenancy/tenant** - Get tenant configuration
+- **GET /recipe/multitenancy/tenant/list** - List all tenants for an app
+- **DELETE /recipe/multitenancy/tenant** - Remove a tenant
+
+### User-Tenant Association
+
+- **POST /recipe/multitenancy/tenant/user** - Associate a user with a tenant
+- **POST /recipe/multitenancy/tenant/user/remove** - Disassociate a user from a tenant
+
+## Configuration
+
+Each tenant can have its own configuration for:
+
+- **Core Settings**: Database configuration, API keys, etc.
+- **Authentication Methods**: Enable/disable recipes per tenant
+- **Third-party Providers**: Configure social login providers
+- **Password Policy**: Customize password requirements
+- **Session Settings**: Token lifetime and security settings
+
+## Permission Model
+
+- Only the **public tenant** of the **public app** can list all apps
+- Only the **public tenant** of an app can list all tenants within that app
+- App-specific operations must be performed in the context of the public tenant
+
+## Next Steps
+
+- [Tenant Management](/api/multitenancy/tenants) - Create and manage tenants
+- [App Management](/api/multitenancy/apps) - Create and manage apps

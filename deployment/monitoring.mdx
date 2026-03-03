@@ -1,0 +1,739 @@
+---
+title: Monitoring and Observability
+description: Monitor SuperTokens Core with health checks, logging, metrics, and observability tools
+---
+
+Proper monitoring ensures your SuperTokens deployment remains healthy, performant, and secure. This guide covers health checks, logging, metrics, and observability.
+
+## Health Checks
+
+### Basic Health Check
+
+SuperTokens provides a `/hello` endpoint for basic health verification:
+
+```bash
+curl http://localhost:3567/hello
+```
+
+**Expected response:**
+```
+Hello
+```
+
+**Status codes:**
+- `200 OK` - Service is healthy and database is accessible
+- `500 Internal Server Error` - Service or database issue
+
+### Docker Health Check
+
+Configure health checks in Docker Compose:
+
+```yaml
+supertokens:
+  image: supertokens/supertokens-postgresql
+  healthcheck:
+    test: >
+      bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 &&
+      echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 &&
+      cat <&3 | grep "Hello"'
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 30s
+```
+
+Or using curl:
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:3567/hello"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+### Kubernetes Probes
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: supertokens
+spec:
+  containers:
+  - name: supertokens
+    image: supertokens/supertokens-postgresql
+    livenessProbe:
+      httpGet:
+        path: /hello
+        port: 3567
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /hello
+        port: 3567
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+```
+
+### Advanced Health Monitoring
+
+Create a comprehensive health check script:
+
+```bash
+#!/bin/bash
+# health-check.sh
+
+SUPERTOKENS_URL="http://localhost:3567"
+API_KEY="your_api_key"
+
+# Test /hello endpoint
+if ! curl -f -s "${SUPERTOKENS_URL}/hello" > /dev/null; then
+    echo "CRITICAL: /hello endpoint failed"
+    exit 2
+fi
+
+# Test response time
+RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' "${SUPERTOKENS_URL}/hello")
+if (( $(echo "$RESPONSE_TIME > 1.0" | bc -l) )); then
+    echo "WARNING: Slow response time: ${RESPONSE_TIME}s"
+    exit 1
+fi
+
+echo "OK: SuperTokens is healthy (${RESPONSE_TIME}s)"
+exit 0
+```
+
+## Logging
+
+### Log Configuration
+
+Configure logging in `config.yaml`:
+
+```yaml
+# Log level: DEBUG, INFO, WARN, ERROR, NONE
+log_level: INFO
+
+# Log file paths
+info_log_path: /var/log/supertokens/info.log
+error_log_path: /var/log/supertokens/error.log
+```
+
+### Log Levels
+
+- **DEBUG**: Detailed debugging information (verbose)
+- **INFO**: General informational messages (default)
+- **WARN**: Warning messages for potential issues
+- **ERROR**: Error messages for failures
+- **NONE**: Disable logging (not recommended)
+
+### Docker Logging
+
+**Send logs to stdout/stderr:**
+
+```yaml
+environment:
+  INFO_LOG_PATH: stdout
+  ERROR_LOG_PATH: stderr
+```
+
+**View Docker logs:**
+
+```bash
+# Follow logs
+docker-compose logs -f supertokens
+
+# Last 100 lines
+docker-compose logs --tail=100 supertokens
+
+# Filter by level
+docker-compose logs supertokens | grep ERROR
+
+# Logs since timestamp
+docker-compose logs --since 2024-01-01T00:00:00 supertokens
+```
+
+### Log Rotation
+
+**Using logrotate (Linux):**
+
+Create `/etc/logrotate.d/supertokens`:
+
+```
+/var/log/supertokens/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 0640 supertokens supertokens
+    sharedscripts
+    postrotate
+        systemctl reload supertokens > /dev/null 2>&1 || true
+    endscript
+}
+```
+
+**Docker log rotation:**
+
+```yaml
+supertokens:
+  image: supertokens/supertokens-postgresql
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+```
+
+### Centralized Logging
+
+#### Elasticsearch + Fluentd + Kibana (EFK)
+
+```yaml
+version: '3.8'
+
+services:
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: supertokens
+
+  fluentd:
+    image: fluent/fluentd:latest
+    volumes:
+      - ./fluentd.conf:/fluentd/etc/fluent.conf
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+    ports:
+      - "9200:9200"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+```
+
+#### Loki + Promtail + Grafana
+
+```yaml
+version: '3.8'
+
+services:
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    labels:
+      logging: "promtail"
+      logging_jobname: "supertokens"
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+```
+
+## OpenTelemetry Integration
+
+SuperTokens supports OpenTelemetry for distributed tracing and metrics.
+
+### Configuration
+
+```yaml
+# Enable OpenTelemetry
+otel_collector_connection_uri: http://otel-collector:4318
+```
+
+Or via environment variable:
+
+```bash
+OTEL_COLLECTOR_CONNECTION_URI=http://otel-collector:4318
+```
+
+### OpenTelemetry Collector Setup
+
+`otel-collector-config.yaml`:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+  logging:
+    loglevel: debug
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger, logging]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, logging]
+```
+
+`docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  supertokens:
+    image: supertokens/supertokens-postgresql
+    environment:
+      OTEL_COLLECTOR_CONNECTION_URI: http://otel-collector:4318
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4318:4318"  # OTLP HTTP
+      - "4317:4317"  # OTLP gRPC
+      - "8889:8889"  # Prometheus metrics
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+```
+
+## Metrics and Monitoring
+
+### Key Metrics to Monitor
+
+#### Application Metrics
+
+- **Request Rate**: Requests per second to SuperTokens
+- **Response Time**: Average/P95/P99 response times
+- **Error Rate**: Percentage of failed requests
+- **Active Sessions**: Number of active user sessions
+- **Database Queries**: Query count and latency
+
+#### System Metrics
+
+- **CPU Usage**: Core CPU utilization percentage
+- **Memory Usage**: RAM consumption
+- **Disk I/O**: Read/write operations
+- **Network I/O**: Inbound/outbound traffic
+
+#### Database Metrics
+
+- **Connection Pool**: Active/idle connections
+- **Query Performance**: Slow query count and duration
+- **Database Size**: Storage usage growth
+- **Replication Lag**: For replicated setups
+
+### Prometheus Configuration
+
+`prometheus.yml`:
+
+```yaml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'supertokens'
+    static_configs:
+      - targets: ['otel-collector:8889']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - 'alerts.yml'
+```
+
+### Grafana Dashboards
+
+#### Import Dashboards
+
+1. Open Grafana: http://localhost:3000
+2. Navigate to Dashboards > Import
+3. Use these dashboard IDs:
+   - **PostgreSQL**: 9628
+   - **MySQL**: 7362
+   - **Docker**: 179
+   - **Node Exporter**: 1860
+
+#### Custom SuperTokens Dashboard
+
+Create a dashboard with panels for:
+
+- Request rate (requests/sec)
+- Response time (ms) - P50, P95, P99
+- Error rate (%)
+- Active sessions
+- Database query count
+- CPU and memory usage
+
+### Database Monitoring
+
+#### PostgreSQL Exporter
+
+```yaml
+postgres-exporter:
+  image: prometheuscommunity/postgres-exporter:latest
+  environment:
+    DATA_SOURCE_NAME: "postgresql://supertokens:password@postgres:5432/supertokens?sslmode=disable"
+  ports:
+    - "9187:9187"
+```
+
+#### MySQL Exporter
+
+```yaml
+mysql-exporter:
+  image: prom/mysqld-exporter:latest
+  environment:
+    DATA_SOURCE_NAME: "supertokens:password@(mysql:3306)/supertokens"
+  ports:
+    - "9104:9104"
+```
+
+### Container Monitoring
+
+#### cAdvisor
+
+```yaml
+cadvisor:
+  image: gcr.io/cadvisor/cadvisor:latest
+  volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:ro
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
+  ports:
+    - "8080:8080"
+```
+
+## Alerting
+
+### AlertManager Configuration
+
+`alertmanager.yml`:
+
+```yaml
+global:
+  resolve_timeout: 5m
+  slack_api_url: 'YOUR_SLACK_WEBHOOK_URL'
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical'
+    - match:
+        severity: warning
+      receiver: 'warning'
+
+receivers:
+  - name: 'default'
+    slack_configs:
+      - channel: '#alerts'
+        title: 'SuperTokens Alert'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+  
+  - name: 'critical'
+    slack_configs:
+      - channel: '#critical-alerts'
+        title: 'CRITICAL: SuperTokens'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_KEY'
+  
+  - name: 'warning'
+    slack_configs:
+      - channel: '#warnings'
+        title: 'Warning: SuperTokens'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+```
+
+### Alert Rules
+
+`alerts.yml`:
+
+```yaml
+groups:
+  - name: supertokens
+    interval: 30s
+    rules:
+      - alert: SuperTokensDown
+        expr: up{job="supertokens"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SuperTokens instance is down"
+          description: "SuperTokens instance {{ $labels.instance }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors/sec for {{ $labels.instance }}."
+
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, http_request_duration_seconds_bucket) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow response time detected"
+          description: "P95 response time is {{ $value }}s for {{ $labels.instance }}."
+
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database connection usage is {{ $value | humanizePercentage }} for {{ $labels.instance }}."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is {{ $value | humanizePercentage }} remaining on {{ $labels.instance }}."
+```
+
+## Uptime Monitoring
+
+### Using External Services
+
+- **Pingdom**: https://www.pingdom.com
+- **UptimeRobot**: https://uptimerobot.com
+- **StatusCake**: https://www.statuscake.com
+- **Better Uptime**: https://betteruptime.com
+
+### Self-Hosted Options
+
+#### Uptime Kuma
+
+```yaml
+uptime-kuma:
+  image: louislam/uptime-kuma:latest
+  volumes:
+    - uptime-kuma-data:/app/data
+  ports:
+    - "3001:3001"
+  restart: always
+```
+
+Access at http://localhost:3001
+
+## Performance Monitoring
+
+### Application Performance Monitoring (APM)
+
+Integrate with APM tools:
+
+- **Datadog**: https://www.datadoghq.com
+- **New Relic**: https://newrelic.com
+- **Dynatrace**: https://www.dynatrace.com
+- **Elastic APM**: https://www.elastic.co/apm
+
+### Custom Performance Tracking
+
+```bash
+#!/bin/bash
+# performance-test.sh
+
+URL="http://localhost:3567/hello"
+REQUESTS=1000
+CONCURRENCY=10
+
+ab -n $REQUESTS -c $CONCURRENCY $URL
+```
+
+## Troubleshooting with Monitoring
+
+### High CPU Usage
+
+```bash
+# Check CPU usage
+docker stats supertokens
+
+# Investigate threads
+docker exec supertokens jstack 1
+
+# Adjust thread pool
+# In config.yaml:
+max_server_pool_size: 50
+```
+
+### High Memory Usage
+
+```bash
+# Check memory
+docker stats supertokens
+
+# Heap dump (if needed)
+docker exec supertokens jmap -dump:live,format=b,file=/tmp/heap.hprof 1
+```
+
+### Slow Database Queries
+
+```sql
+-- PostgreSQL slow queries
+SELECT query, mean_time, calls
+FROM pg_stat_statements
+ORDER BY mean_time DESC
+LIMIT 10;
+
+-- MySQL slow queries
+SELECT * FROM mysql.slow_log
+ORDER BY query_time DESC
+LIMIT 10;
+```
+
+## Security Monitoring
+
+### Failed Authentication Attempts
+
+Monitor error logs for patterns:
+
+```bash
+grep "authentication failed" /var/log/supertokens/error.log | wc -l
+```
+
+### Rate Limiting
+
+SuperTokens has built-in rate limiting. Monitor rate limit hits:
+
+```bash
+grep "RateLimited" /var/log/supertokens/info.log
+```
+
+### Audit Logging
+
+For compliance, enable audit logging:
+
+```yaml
+log_level: DEBUG  # Captures all API calls
+```
+
+## Best Practices
+
+1. **Set up health checks** on all deployment platforms
+2. **Monitor key metrics** continuously (response time, error rate, CPU, memory)
+3. **Configure alerts** for critical issues with appropriate thresholds
+4. **Centralize logs** for easier troubleshooting
+5. **Test alerts** regularly to ensure they work
+6. **Document runbooks** for common issues
+7. **Review metrics** regularly to identify trends
+8. **Set up dashboards** for at-a-glance status
+9. **Monitor database** health separately
+10. **Keep retention policies** for logs and metrics
+
+## Next Steps
+
+- [Configure database monitoring](/deployment/database-setup)
+- [Set up high availability](/deployment/self-hosting#scaling-considerations)
+- [Optimize performance](/deployment/docker#multi-container-scaling)

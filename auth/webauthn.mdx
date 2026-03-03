@@ -1,0 +1,636 @@
+---
+title: WebAuthn / Passkeys
+description: Passwordless authentication using biometrics and security keys
+---
+
+## Overview
+
+WebAuthn (Web Authentication) enables passwordless authentication using biometrics (fingerprint, Face ID) or hardware security keys (YubiKey, Titan). SuperTokens Core implements the WebAuthn standard for secure, phishing-resistant authentication.
+
+**Standards:** W3C Web Authentication API (WebAuthn Level 2)
+
+**Implementation:** Uses webauthn4j library for credential verification
+
+## Core Concepts
+
+### Relying Party (RP)
+
+Your application acts as the relying party:
+- **RP ID**: Your domain (e.g., "example.com")
+- **RP Name**: Display name (e.g., "My App")
+- **Origin**: Full URL (e.g., "https://example.com")
+
+### Credentials
+
+Each user can have multiple credentials:
+- Biometric authenticators (Touch ID, Face ID, Windows Hello)
+- Security keys (YubiKey, Titan Key)
+- Platform authenticators (TPM, Secure Enclave)
+
+### Challenge-Response
+
+WebAuthn uses cryptographic challenge-response:
+1. Server generates random challenge
+2. Client signs challenge with private key
+3. Server verifies signature with public key
+
+## Registration Flow
+
+### Generate Registration Options
+
+Create options for credential registration.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.generateRegisterOptions()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:73.
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/options/register`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "displayName": "John Doe",
+  "relyingPartyName": "My App",
+  "relyingPartyId": "example.com",
+  "origin": "https://example.com",
+  "timeout": 60000,
+  "attestation": "none",
+  "residentKey": "preferred",
+  "userVerification": "preferred",
+  "supportedAlgorithmIds": [-7, -257],
+  "userPresenceRequired": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "optionsId": "generated-options-id",
+  "createdAt": 1234567890,
+  "expiresAt": 1234627890,
+  "publicKey": {
+    "challenge": "base64-encoded-challenge",
+    "rp": {
+      "name": "My App",
+      "id": "example.com"
+    },
+    "user": {
+      "id": "base64-user-id",
+      "name": "user@example.com",
+      "displayName": "John Doe"
+    },
+    "pubKeyCredParams": [
+      {"type": "public-key", "alg": -7},
+      {"type": "public-key", "alg": -257}
+    ],
+    "timeout": 60000,
+    "attestation": "none",
+    "authenticatorSelection": {
+      "residentKey": "preferred",
+      "userVerification": "preferred"
+    }
+  }
+}
+```
+
+**Supported Algorithms:**
+- `-7`: ES256 (ECDSA with SHA-256)
+- `-257`: RS256 (RSASSA-PKCS1-v1_5 with SHA-256)
+
+### Register Credential
+
+Verify and store the credential.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.registerCredentials()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:182.
+
+**Process:**
+1. Retrieve generated options
+2. Validate credential format
+3. Verify attestation signature
+4. Extract public key
+5. Store credential
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/credentials/register`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "optionsId": "options-id",
+  "credential": {
+    "id": "credential-id",
+    "rawId": "base64-raw-id",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "base64-client-data",
+      "attestationObject": "base64-attestation"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "credential": {
+    "credentialId": "credential-id",
+    "userId": "user-id",
+    "relyingPartyId": "example.com",
+    "createdAt": 1234567890
+  }
+}
+```
+
+### Sign Up with Credential
+
+Create a new user and credential in one transaction.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.signUp()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:282.
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/signup`
+
+**Request Body:**
+```json
+{
+  "optionsId": "options-id",
+  "credential": {
+    "id": "credential-id",
+    "rawId": "base64-raw-id",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "base64-client-data",
+      "attestationObject": "base64-attestation"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "user": {
+    "id": "user-id",
+    "email": "user@example.com",
+    "timeJoined": 1234567890
+  },
+  "credential": {
+    "credentialId": "credential-id"
+  }
+}
+```
+
+## Authentication Flow
+
+### Generate Sign-In Options
+
+Create options for authentication.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.generateSignInOptions()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:139.
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/options/signin`
+
+**Request Body:**
+```json
+{
+  "relyingPartyId": "example.com",
+  "relyingPartyName": "My App",
+  "origin": "https://example.com",
+  "timeout": 60000,
+  "userVerification": "preferred",
+  "userPresenceRequired": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "optionsId": "options-id",
+  "createdAt": 1234567890,
+  "publicKey": {
+    "challenge": "base64-challenge",
+    "timeout": 60000,
+    "rpId": "example.com",
+    "userVerification": "preferred"
+  }
+}
+```
+
+### Sign In
+
+Verify credential and authenticate user.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.signIn()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:382.
+
+**Process:**
+1. Retrieve sign-in options
+2. Load credential by ID
+3. Verify authentication data
+4. Update signature counter
+5. Return user information
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/signin`
+
+**Request Body:**
+```json
+{
+  "optionsId": "options-id",
+  "credential": {
+    "id": "credential-id",
+    "rawId": "base64-raw-id",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "base64-client-data",
+      "authenticatorData": "base64-authenticator-data",
+      "signature": "base64-signature",
+      "userHandle": "base64-user-handle"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "user": {
+    "id": "user-id",
+    "email": "user@example.com",
+    "timeJoined": 1234567890
+  }
+}
+```
+
+## Credential Management
+
+### List Credentials
+
+Get all credentials for a user.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.listCredentialsForUser()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:615.
+
+**API Endpoint:**
+
+**GET** `/recipe/webauthn/credentials/list?userId={userId}`
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "credentials": [
+    {
+      "credentialId": "credential-1",
+      "userId": "user-id",
+      "relyingPartyId": "example.com",
+      "createdAt": 1234567890,
+      "counter": 5
+    },
+    {
+      "credentialId": "credential-2",
+      "userId": "user-id",
+      "relyingPartyId": "example.com",
+      "createdAt": 1234567891,
+      "counter": 3
+    }
+  ]
+}
+```
+
+### Get Credential
+
+Retrieve specific credential details.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.loadCredentialByIdForUser()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:450.
+
+**API Endpoint:**
+
+**GET** `/recipe/webauthn/credential?credentialId={id}&userId={userId}`
+
+### Remove Credential
+
+Delete a credential.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.removeCredential()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:600.
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/credentials/remove`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "credentialId": "credential-id"
+}
+```
+
+## Account Recovery
+
+WebAuthn accounts can be recovered via email.
+
+### Generate Recovery Token
+
+Implemented in `io.supertokens.webauthn.WebAuthN.generateRecoverAccountToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:503.
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/account/recover/token`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "userId": "user-id"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "token": "recovery-token"
+}
+```
+
+### Consume Recovery Token
+
+Implemented in `io.supertokens.webauthn.WebAuthN.consumeRecoverAccountToken()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:533.
+
+**API Endpoint:**
+
+**POST** `/recipe/webauthn/account/recover/token/consume`
+
+**Request Body:**
+```json
+{
+  "token": "recovery-token"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "OK",
+  "userId": "user-id",
+  "email": "user@example.com"
+}
+```
+
+## User Management
+
+### Update User Email
+
+Implemented in `io.supertokens.webauthn.WebAuthN.updateUserEmail()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:635.
+
+**API Endpoint:**
+
+**PUT** `/recipe/webauthn/user/email`
+
+**Request Body:**
+```json
+{
+  "userId": "user-id",
+  "email": "newemail@example.com"
+}
+```
+
+## Configuration
+
+### WebAuthn Settings
+
+```yaml
+# Recovery token lifetime (1 hour)
+webauthn_recover_account_token_lifetime: 3600000
+```
+
+### Relying Party Configuration
+
+Configure in your application:
+
+**RP ID:**
+- Must match the domain
+- Can be the root domain or subdomain
+- Example: "example.com" or "auth.example.com"
+
+**Origin:**
+- Must be the full URL
+- Must use HTTPS in production
+- Example: "https://example.com"
+
+## Security Features
+
+### Attestation Verification
+
+Verify authenticator authenticity during registration.
+
+Implemented in `io.supertokens.webauthn.WebAuthN.verifyRegistrationData()` at /home/daytona/workspace/source/src/main/java/io/supertokens/webauthn/WebAuthN.java:217.
+
+**Attestation Types:**
+- `none`: No attestation (most common)
+- `indirect`: Anonymized attestation
+- `direct`: Full attestation chain
+
+### Signature Counter
+
+Detect cloned authenticators:
+
+```java
+if (newCounter <= storedCounter && storedCounter != 0) {
+    // Possible authenticator cloning
+    throw new SecurityException("Counter decreased");
+}
+```
+
+### Challenge Validation
+
+Challenges are:
+- 32 random bytes
+- One-time use
+- Time-limited (default: 60 seconds)
+- Cryptographically signed by authenticator
+
+### Origin Validation
+
+Strict origin checking:
+- Must match exactly
+- No wildcards allowed
+- HTTPS required in production
+
+## WebAuthn Options
+
+### User Verification
+
+Controls biometric/PIN verification:
+
+- `required`: Always verify user (biometric/PIN)
+- `preferred`: Verify if possible
+- `discouraged`: Skip verification
+
+**Recommendation:** Use `preferred` for good UX and security balance.
+
+### Resident Keys
+
+Also known as "discoverable credentials" or "passkeys":
+
+- `required`: Must be stored on authenticator
+- `preferred`: Store if possible
+- `discouraged`: Don't store on authenticator
+
+**Benefits:**
+- Usernameless login
+- Better UX on mobile
+- Works across devices (with sync)
+
+### Attestation
+
+Control authenticator verification:
+
+- `none`: No attestation (fastest)
+- `indirect`: Anonymized attestation
+- `direct`: Full attestation (privacy concerns)
+
+**Recommendation:** Use `none` unless you need to restrict authenticator types.
+
+## Client-Side Integration
+
+### Registration (JavaScript)
+
+```javascript
+// 1. Get options from server
+const optionsResponse = await fetch('/recipe/webauthn/options/register', {
+  method: 'POST',
+  body: JSON.stringify({
+    email: 'user@example.com',
+    displayName: 'John Doe',
+    relyingPartyName: 'My App',
+    relyingPartyId: 'example.com',
+    origin: window.location.origin
+  })
+});
+const { optionsId, publicKey } = await optionsResponse.json();
+
+// 2. Convert challenge and user.id from base64
+publicKey.challenge = base64ToArrayBuffer(publicKey.challenge);
+publicKey.user.id = base64ToArrayBuffer(publicKey.user.id);
+
+// 3. Create credential
+const credential = await navigator.credentials.create({ publicKey });
+
+// 4. Register with server
+const registerResponse = await fetch('/recipe/webauthn/credentials/register', {
+  method: 'POST',
+  body: JSON.stringify({
+    userId: 'user-id',
+    optionsId,
+    credential: {
+      id: credential.id,
+      rawId: arrayBufferToBase64(credential.rawId),
+      type: credential.type,
+      response: {
+        clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+        attestationObject: arrayBufferToBase64(credential.response.attestationObject)
+      }
+    }
+  })
+});
+```
+
+### Authentication (JavaScript)
+
+```javascript
+// 1. Get options from server
+const optionsResponse = await fetch('/recipe/webauthn/options/signin', {
+  method: 'POST',
+  body: JSON.stringify({
+    relyingPartyId: 'example.com',
+    origin: window.location.origin
+  })
+});
+const { optionsId, publicKey } = await optionsResponse.json();
+
+// 2. Convert challenge from base64
+publicKey.challenge = base64ToArrayBuffer(publicKey.challenge);
+
+// 3. Get credential
+const credential = await navigator.credentials.get({ publicKey });
+
+// 4. Sign in with server
+const signinResponse = await fetch('/recipe/webauthn/signin', {
+  method: 'POST',
+  body: JSON.stringify({
+    optionsId,
+    credential: {
+      id: credential.id,
+      rawId: arrayBufferToBase64(credential.rawId),
+      type: credential.type,
+      response: {
+        clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+        authenticatorData: arrayBufferToBase64(credential.response.authenticatorData),
+        signature: arrayBufferToBase64(credential.response.signature),
+        userHandle: arrayBufferToBase64(credential.response.userHandle)
+      }
+    }
+  })
+});
+```
+
+## Error Handling
+
+### Common Exceptions
+
+- `WebauthNVerificationFailedException`: Signature verification failed
+- `WebauthNInvalidFormatException`: Malformed credential data
+- `WebauthNOptionsNotExistsException`: Options expired or not found
+- `InvalidWebauthNOptionsException`: Invalid or expired options
+- `DuplicateCredentialException`: Credential already registered
+- `InvalidTokenException`: Recovery token invalid or expired
+
+## Best Practices
+
+1. **HTTPS only**: WebAuthn requires HTTPS (except localhost)
+2. **User verification**: Use `preferred` for best UX
+3. **Resident keys**: Enable for passkey support
+4. **Multiple credentials**: Allow users to register multiple devices
+5. **Recovery flow**: Implement email-based recovery
+6. **Clear naming**: Help users identify their credentials
+7. **Error handling**: Provide helpful error messages
+8. **Browser support**: Check for WebAuthn support
+9. **Timeout**: Use reasonable timeouts (60 seconds)
+10. **Testing**: Test on multiple browsers and devices
+
+## Browser Support
+
+WebAuthn is supported in:
+- Chrome 67+
+- Firefox 60+
+- Safari 14+
+- Edge 18+
+
+**Platform authenticators:**
+- Windows Hello (Windows 10+)
+- Touch ID / Face ID (iOS 14+, macOS)
+- Android biometrics (Android 9+)
+
+## Multi-Tenancy
+
+WebAuthn credentials are tenant-specific:
+
+- Credentials are isolated per tenant
+- Relying Party ID can vary by tenant
+- Options validation respects tenant context
+
+## Migration
+
+Importing WebAuthn users from other systems is not currently supported due to the cryptographic nature of credentials. Users must re-register their authenticators.

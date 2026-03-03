@@ -1,0 +1,43 @@
+---
+title: Dashboard API Overview
+description: Dashboard user authentication and session management API endpoints
+---
+
+The Dashboard API provides endpoints for managing dashboard users and their sessions. This is used for authenticating users who access your SuperTokens management dashboard.
+
+## Key Features
+
+- Dashboard user authentication
+- Session management and verification
+- User credential management
+- Multi-user support
+- Email/password authentication
+
+## Authentication Flow
+
+1. Sign in with email and password using `/recipe/dashboard/signin`
+2. Store the returned `sessionId`
+3. Verify session on subsequent requests with `/recipe/dashboard/session/verify`
+4. Revoke session on logout with `/recipe/dashboard/session`
+
+## Base Path
+
+All Dashboard endpoints are prefixed with `/recipe/dashboard`
+
+## Security Notes
+
+- All endpoints are app-specific and use the public tenant storage
+- Passwords must meet strength requirements
+- Sessions can be suspended if license is inactive
+- Email addresses are normalized and validated
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="clock" href="/api/dashboard/sessions">
+    Manage dashboard user sessions
+  </Card>
+  <Card title="Users" icon="users" href="/api/dashboard/users">
+    Manage dashboard users and credentials
+  </Card>
+</CardGroup>

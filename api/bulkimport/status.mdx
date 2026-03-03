@@ -1,0 +1,113 @@
+---
+title: Bulk Import Status
+description: Endpoints for checking bulk import status and progress
+---
+
+## List Bulk Import Users
+
+<RequestExample>
+```bash cURL
+curl -X GET "https://your-domain.com/bulk-import/users?status=FAILED&limit=100&paginationToken=token" \
+  -H "Content-Type: application/json"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "users": [
+    {
+      "id": "bulk-import-user-id",
+      "status": "FAILED",
+      "externalUserId": "user-123",
+      "userMetadata": {"plan": "premium"},
+      "errorMessage": "Email already exists",
+      "createdAt": 1234567890000,
+      "updatedAt": 1234567895000
+    }
+  ],
+  "nextPaginationToken": "next-token"
+}
+```
+</ResponseExample>
+
+<ParamField query="status" type="string">
+  Filter by status: "NEW", "PROCESSING", or "FAILED"
+</ParamField>
+
+<ParamField query="limit" type="number">
+  Number of users to return (default: 500, max: 1000)
+</ParamField>
+
+<ParamField query="paginationToken" type="string">
+  Token for fetching next page of results
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK"
+</ResponseField>
+
+<ResponseField name="users" type="array">
+  Array of bulk import user objects matching the filter
+</ResponseField>
+
+<ResponseField name="users[].id" type="string">
+  Bulk import user ID
+</ResponseField>
+
+<ResponseField name="users[].status" type="string">
+  Current status: "NEW", "PROCESSING", or "FAILED"
+</ResponseField>
+
+<ResponseField name="users[].externalUserId" type="string">
+  External user identifier
+</ResponseField>
+
+<ResponseField name="users[].errorMessage" type="string">
+  Error message if status is "FAILED"
+</ResponseField>
+
+<ResponseField name="users[].createdAt" type="number">
+  Timestamp when import was created (milliseconds since epoch)
+</ResponseField>
+
+<ResponseField name="users[].updatedAt" type="number">
+  Timestamp when import was last updated (milliseconds since epoch)
+</ResponseField>
+
+<ResponseField name="nextPaginationToken" type="string">
+  Token for fetching the next page (omitted if no more results)
+</ResponseField>
+
+---
+
+## Count Bulk Import Users
+
+<RequestExample>
+```bash cURL
+curl -X GET "https://your-domain.com/bulk-import/users/count?status=FAILED" \
+  -H "Content-Type: application/json"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "count": 42
+}
+```
+</ResponseExample>
+
+<ParamField query="status" type="string">
+  Filter by status: "NEW", "PROCESSING", or "FAILED". If omitted, returns count of all users
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK"
+</ResponseField>
+
+<ResponseField name="count" type="number">
+  Total number of bulk import users matching the filter
+</ResponseField>

@@ -1,0 +1,194 @@
+---
+title: Dashboard User Management
+description: Endpoints for managing dashboard users
+---
+
+## List Dashboard Users
+
+<RequestExample>
+```bash cURL
+curl -X GET https://your-domain.com/recipe/dashboard/users \
+  -H "Content-Type: application/json"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "users": [
+    {
+      "userId": "user-id-1",
+      "email": "admin@example.com",
+      "timeJoined": 1234567890000
+    },
+    {
+      "userId": "user-id-2",
+      "email": "admin2@example.com",
+      "timeJoined": 1234567900000
+    }
+  ]
+}
+```
+</ResponseExample>
+
+<ResponseField name="status" type="string">
+  "OK"
+</ResponseField>
+
+<ResponseField name="users" type="array">
+  Array of dashboard user objects
+</ResponseField>
+
+<ResponseField name="users[].userId" type="string">
+  Unique identifier for the dashboard user
+</ResponseField>
+
+<ResponseField name="users[].email" type="string">
+  Email address of the dashboard user
+</ResponseField>
+
+<ResponseField name="users[].timeJoined" type="number">
+  Timestamp when user was created (milliseconds since epoch)
+</ResponseField>
+
+---
+
+## Create Dashboard User
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-domain.com/recipe/dashboard/user \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "newadmin@example.com",
+    "password": "StrongPassword123!"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "user": {
+    "userId": "user-id",
+    "email": "newadmin@example.com",
+    "timeJoined": 1234567890000
+  }
+}
+```
+</ResponseExample>
+
+<ParamField path="email" type="string" required>
+  Email address for the new dashboard user (will be normalized and validated)
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  Password for the new dashboard user (must meet strength requirements)
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_EMAIL_ERROR", "PASSWORD_WEAK_ERROR", or "EMAIL_ALREADY_EXISTS_ERROR"
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Created dashboard user object
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Additional message for PASSWORD_WEAK_ERROR status explaining requirements
+</ResponseField>
+
+---
+
+## Update Dashboard User
+
+<RequestExample>
+```bash cURL
+curl -X PUT https://your-domain.com/recipe/dashboard/user \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user-id",
+    "newEmail": "updated@example.com",
+    "newPassword": "NewStrongPassword123!"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "user": {
+    "userId": "user-id",
+    "email": "updated@example.com",
+    "timeJoined": 1234567890000
+  }
+}
+```
+</ResponseExample>
+
+<ParamField path="userId" type="string">
+  The user ID to update (either userId or email must be provided)
+</ParamField>
+
+<ParamField path="email" type="string">
+  The email address to look up the user (either userId or email must be provided)
+</ParamField>
+
+<ParamField path="newEmail" type="string">
+  New email address (optional, will be normalized and validated)
+</ParamField>
+
+<ParamField path="newPassword" type="string">
+  New password (optional, must meet strength requirements)
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK", "INVALID_EMAIL_ERROR", "PASSWORD_WEAK_ERROR", "EMAIL_ALREADY_EXISTS_ERROR", or "UNKNOWN_USER_ERROR"
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Updated dashboard user object
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Additional message for PASSWORD_WEAK_ERROR status
+</ResponseField>
+
+---
+
+## Delete Dashboard User
+
+<RequestExample>
+```bash cURL
+curl -X DELETE "https://your-domain.com/recipe/dashboard/user?userId=user-id" \
+  -H "Content-Type: application/json"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200 OK
+{
+  "status": "OK",
+  "didUserExist": true
+}
+```
+</ResponseExample>
+
+<ParamField query="userId" type="string">
+  The user ID to delete (either userId or email must be provided)
+</ParamField>
+
+<ParamField query="email" type="string">
+  The email address to look up and delete the user (either userId or email must be provided)
+</ParamField>
+
+<ResponseField name="status" type="string">
+  "OK"
+</ResponseField>
+
+<ResponseField name="didUserExist" type="boolean">
+  Whether the user existed before deletion
+</ResponseField>

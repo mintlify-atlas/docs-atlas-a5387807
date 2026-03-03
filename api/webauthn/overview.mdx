@@ -1,0 +1,46 @@
+---
+title: WebAuthn API Overview
+description: WebAuthn (Web Authentication) API endpoints for passwordless authentication using FIDO2 credentials
+---
+
+The WebAuthn API provides endpoints for implementing passwordless authentication using FIDO2 credentials like security keys, platform authenticators (Face ID, Touch ID), and biometric devices.
+
+## Key Features
+
+- Passwordless authentication using FIDO2/WebAuthn standards
+- Support for multiple credentials per user
+- Resident key support for usernameless authentication
+- Challenge-response authentication flow
+- Credential lifecycle management
+
+## Authentication Flow
+
+### Registration Flow
+
+1. Generate registration options with `/recipe/webauthn/options/register`
+2. Client performs WebAuthn registration ceremony
+3. Complete registration with `/recipe/webauthn/signup` or `/recipe/webauthn/user/credential/register`
+
+### Sign-In Flow
+
+1. Generate sign-in options with `/recipe/webauthn/options/signin`
+2. Client performs WebAuthn authentication ceremony
+3. Verify credentials with `/recipe/webauthn/signin`
+
+## Base Path
+
+All WebAuthn endpoints are prefixed with `/recipe/webauthn`
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Registration" icon="user-plus" href="/api/webauthn/register">
+    Generate options and register new WebAuthn credentials
+  </Card>
+  <Card title="Authentication" icon="key" href="/api/webauthn/authenticate">
+    Generate options and authenticate with WebAuthn credentials
+  </Card>
+  <Card title="Credentials" icon="id-card" href="/api/webauthn/credentials">
+    Manage user credentials (list, get, remove)
+  </Card>
+</CardGroup>

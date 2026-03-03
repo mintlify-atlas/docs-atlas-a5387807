@@ -1,0 +1,48 @@
+---
+title: SAML API Overview
+description: SAML SSO API endpoints for enterprise authentication
+---
+
+The SAML API provides endpoints for implementing SAML 2.0 Single Sign-On (SSO) for enterprise authentication. This allows your application to integrate with Identity Providers (IdPs) like Okta, Azure AD, Google Workspace, and others.
+
+## Key Features
+
+- SAML 2.0 Service Provider (SP) implementation
+- Multiple SAML client configuration support
+- SP-initiated and IdP-initiated login flows
+- Automatic IdP metadata parsing
+- Request signing support
+- Assertion validation and verification
+
+## Authentication Flow
+
+### SP-Initiated Login
+
+1. Create SAML client with IdP metadata using `/recipe/saml/clients`
+2. Initiate login with `/recipe/saml/login` to get SSO redirect URL
+3. User authenticates with IdP
+4. Handle callback with `/recipe/saml/callback` to complete authentication
+
+### IdP-Initiated Login
+
+1. User initiates login from IdP portal
+2. IdP sends SAML assertion to your callback endpoint
+3. Handle callback with `/recipe/saml/callback` (if enabled in client config)
+
+## Base Path
+
+All SAML endpoints are prefixed with `/recipe/saml`
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Clients" icon="building" href="/api/saml/clients">
+    Configure and manage SAML client connections
+  </Card>
+  <Card title="Login" icon="arrow-right-to-bracket" href="/api/saml/login">
+    Initiate SAML authentication flow
+  </Card>
+  <Card title="Callback" icon="arrow-left-to-bracket" href="/api/saml/callback">
+    Handle SAML assertion callback
+  </Card>
+</CardGroup>
