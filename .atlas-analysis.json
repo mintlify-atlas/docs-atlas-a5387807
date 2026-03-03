@@ -1,0 +1,242 @@
+{
+  "projectType": "api-service",
+  "projectName": "SuperTokens Core",
+  "projectDescription": "Open source authentication service providing secure login and session management APIs",
+  "theme": "aspen",
+  "primaryColor": "#ff9933",
+  "lightColor": "#ffa64d",
+  "darkColor": "#e68a2e",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "architecture",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sessions",
+              "concepts/multitenancy",
+              "concepts/user-management",
+              "concepts/security"
+            ]
+          },
+          {
+            "group": "Authentication Methods",
+            "pages": [
+              "auth/email-password",
+              "auth/passwordless",
+              "auth/social-login",
+              "auth/oauth",
+              "auth/mfa",
+              "auth/webauthn",
+              "auth/saml"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "advanced/bulk-import",
+              "advanced/user-roles",
+              "advanced/user-metadata",
+              "advanced/active-users",
+              "advanced/jwt"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/self-hosting",
+              "deployment/database-setup",
+              "deployment/docker",
+              "deployment/monitoring"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core APIs",
+            "pages": [
+              "api/core/overview",
+              "api/core/hello",
+              "api/core/config",
+              "api/core/users",
+              "api/core/jwks"
+            ]
+          },
+          {
+            "group": "Session Management",
+            "pages": [
+              "api/session/overview",
+              "api/session/create",
+              "api/session/verify",
+              "api/session/refresh",
+              "api/session/revoke"
+            ]
+          },
+          {
+            "group": "Email Password",
+            "pages": [
+              "api/emailpassword/overview",
+              "api/emailpassword/signup",
+              "api/emailpassword/signin",
+              "api/emailpassword/reset-password"
+            ]
+          },
+          {
+            "group": "Passwordless",
+            "pages": [
+              "api/passwordless/overview",
+              "api/passwordless/create-code",
+              "api/passwordless/consume-code",
+              "api/passwordless/resend-code"
+            ]
+          },
+          {
+            "group": "Third Party (Social Login)",
+            "pages": [
+              "api/thirdparty/overview",
+              "api/thirdparty/signin-up",
+              "api/thirdparty/providers"
+            ]
+          },
+          {
+            "group": "OAuth",
+            "pages": [
+              "api/oauth/overview",
+              "api/oauth/authorize",
+              "api/oauth/token",
+              "api/oauth/clients"
+            ]
+          },
+          {
+            "group": "Multi-tenancy",
+            "pages": [
+              "api/multitenancy/overview",
+              "api/multitenancy/tenants",
+              "api/multitenancy/apps"
+            ]
+          },
+          {
+            "group": "User Management",
+            "pages": [
+              "api/users/get-by-id",
+              "api/users/delete",
+              "api/users/list",
+              "api/users/account-linking"
+            ]
+          },
+          {
+            "group": "User Roles & Metadata",
+            "pages": [
+              "api/roles/overview",
+              "api/roles/create",
+              "api/roles/assign",
+              "api/metadata/get",
+              "api/metadata/update"
+            ]
+          },
+          {
+            "group": "MFA & TOTP",
+            "pages": [
+              "api/totp/overview",
+              "api/totp/create-device",
+              "api/totp/verify-device",
+              "api/totp/verify-totp"
+            ]
+          },
+          {
+            "group": "WebAuthn",
+            "pages": [
+              "api/webauthn/overview",
+              "api/webauthn/register",
+              "api/webauthn/authenticate",
+              "api/webauthn/credentials"
+            ]
+          },
+          {
+            "group": "SAML",
+            "pages": [
+              "api/saml/overview",
+              "api/saml/clients",
+              "api/saml/login",
+              "api/saml/callback"
+            ]
+          },
+          {
+            "group": "Dashboard",
+            "pages": [
+              "api/dashboard/overview",
+              "api/dashboard/sessions",
+              "api/dashboard/users"
+            ]
+          },
+          {
+            "group": "Bulk Import",
+            "pages": [
+              "api/bulkimport/overview",
+              "api/bulkimport/import",
+              "api/bulkimport/status"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Session Management",
+    "Email/Password Authentication",
+    "Passwordless Login",
+    "Social Login (Third Party)",
+    "OAuth 2.0 Provider",
+    "Multi-Factor Authentication (MFA/TOTP)",
+    "WebAuthn Support",
+    "SAML Integration",
+    "Multi-tenancy & Organizations",
+    "User Roles & Permissions",
+    "User Metadata Management",
+    "Bulk User Import",
+    "User Management Dashboard",
+    "Multiple Database Support (PostgreSQL, MySQL, MongoDB)",
+    "JWT Signing & Verification"
+  ],
+  "publicApiSurface": [
+    "/hello - Health check endpoint",
+    "/recipe/session/session - Session creation",
+    "/recipe/session/verify - Session verification",
+    "/recipe/session/refresh - Session refresh",
+    "/recipe/signup - Email/password signup",
+    "/recipe/signin - Email/password signin",
+    "/recipe/user/password/reset/token - Password reset token",
+    "/recipe/signinup/code - Create passwordless code",
+    "/recipe/signinup/code/consume - Consume passwordless code",
+    "/recipe/signinup - Third party sign in/up",
+    "/recipe/oauth/auth - OAuth authorization",
+    "/recipe/oauth/token - OAuth token exchange",
+    "/recipe/totp/device - Create TOTP device",
+    "/recipe/totp/verify - Verify TOTP code",
+    "/recipe/webauthn/register - WebAuthn registration",
+    "/recipe/webauthn/authenticate - WebAuthn authentication",
+    "/recipe/saml/login - SAML login",
+    "/recipe/multitenancy/tenant - Tenant management",
+    "/recipe/role - User role management",
+    "/user/metadata - User metadata management",
+    "/users - List users",
+    "/user - Get/delete user by ID",
+    "/recipe/accountlinking/user/link - Link user accounts",
+    "/.well-known/jwks.json - JWKS public keys",
+    "/recipe/dashboard/user - Dashboard user management",
+    "/bulk-import/import - Bulk import users"
+  ]
+}
